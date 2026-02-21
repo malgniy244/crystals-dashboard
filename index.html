@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Crystal's Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0e0e0e;
+      --surface: #161616;
+      --border: #2a2a2a;
+      --gold: #c9a84c;
+      --gold-light: #e8c97a;
+      --text: #e8e4dc;
+      --muted: #888;
+      --card-bg: #131313;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Noise overlay ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.4;
+    }
+
+    /* ── LOGIN SCREEN ── */
+    #login-screen {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      gap: 0;
+    }
+
+    .login-box {
+      border: 1px solid var(--border);
+      padding: 56px 48px;
+      width: 360px;
+      position: relative;
+      background: var(--surface);
+    }
+
+    .login-box::before {
+      content: '';
+      position: absolute;
+      top: -1px; left: 24px; right: 24px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    }
+
+    .login-title {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 2rem;
+      font-weight: 300;
+      letter-spacing: 0.08em;
+      color: var(--text);
+      margin-bottom: 6px;
+      text-align: center;
+    }
+
+    .login-sub {
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .login-label {
+      font-size: 0.6rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+      display: block;
+    }
+
+    .login-input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.85rem;
+      padding: 12px 14px;
+      outline: none;
+      letter-spacing: 0.1em;
+      transition: border-color 0.2s;
+    }
+
+    .login-input:focus {
+      border-color: var(--gold);
+    }
+
+    .login-btn {
+      width: 100%;
+      margin-top: 20px;
+      padding: 13px;
+      background: transparent;
+      border: 1px solid var(--gold);
+      color: var(--gold);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .login-btn:hover {
+      background: var(--gold);
+      color: var(--bg);
+    }
+
+    .login-error {
+      margin-top: 14px;
+      font-size: 0.65rem;
+      color: #c0392b;
+      letter-spacing: 0.1em;
+      text-align: center;
+      min-height: 16px;
+    }
+
+    /* ── DASHBOARD ── */
+    #dashboard {
+      display: none;
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+    }
+
+    header {
+      padding: 48px 64px 0;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 32px;
+    }
+
+    .header-left {}
+
+    .header-eyebrow {
+      font-size: 0.6rem;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 10px;
+    }
+
+    h1 {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 3.2rem;
+      font-weight: 300;
+      letter-spacing: 0.04em;
+      line-height: 1;
+      color: var(--text);
+    }
+
+    h1 span {
+      color: var(--gold);
+    }
+
+    .header-right {
+      text-align: right;
+    }
+
+    .datetime {
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+    }
+
+    .logout-btn {
+      margin-top: 8px;
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      padding: 6px 14px;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+      display: block;
+      margin-left: auto;
+    }
+
+    .logout-btn:hover {
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+
+    /* ── TOOLS GRID ── */
+    .tools-section {
+      padding: 56px 64px;
+    }
+
+    .section-label {
+      font-size: 0.6rem;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 32px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .tools-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+    }
+
+    .tool-card {
+      background: var(--card-bg);
+      padding: 40px 36px;
+      text-decoration: none;
+      color: inherit;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      position: relative;
+      overflow: hidden;
+      transition: background 0.25s;
+      cursor: pointer;
+    }
+
+    .tool-card::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--gold), transparent);
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform 0.3s ease;
+    }
+
+    .tool-card:hover {
+      background: #1a1a1a;
+    }
+
+    .tool-card:hover::after {
+      transform: scaleX(1);
+    }
+
+    .tool-number {
+      font-size: 0.6rem;
+      letter-spacing: 0.2em;
+      color: var(--gold);
+      opacity: 0.7;
+    }
+
+    .tool-icon {
+      font-size: 1.6rem;
+      line-height: 1;
+    }
+
+    .tool-name {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.5rem;
+      font-weight: 400;
+      letter-spacing: 0.03em;
+      color: var(--text);
+      line-height: 1.2;
+    }
+
+    .tool-desc {
+      font-size: 0.7rem;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+      line-height: 1.6;
+    }
+
+    .tool-link {
+      margin-top: auto;
+      font-size: 0.6rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--gold);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      opacity: 0;
+      transform: translateX(-8px);
+      transition: opacity 0.2s, transform 0.2s;
+    }
+
+    .tool-card:hover .tool-link {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .tool-link::after {
+      content: '→';
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      padding: 24px 64px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .footer-text {
+      font-size: 0.6rem;
+      color: var(--muted);
+      letter-spacing: 0.15em;
+    }
+
+    .footer-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--gold);
+      opacity: 0.5;
+    }
+
+    /* ── Fade in animation ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .tool-card {
+      animation: fadeUp 0.5s ease both;
+    }
+    .tool-card:nth-child(1) { animation-delay: 0.05s; }
+    .tool-card:nth-child(2) { animation-delay: 0.15s; }
+    .tool-card:nth-child(3) { animation-delay: 0.25s; }
+
+    @media (max-width: 600px) {
+      header, .tools-section, footer { padding-left: 24px; padding-right: 24px; }
+      h1 { font-size: 2.2rem; }
+      .login-box { width: 90%; padding: 40px 28px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-box">
+    <p class="login-title">Crystal's<br>Dashboard</p>
+    <p class="login-sub">Stack's Bowers &amp; Ponterio</p>
+    <label class="login-label" for="pwd">Access Code</label>
+    <input class="login-input" type="password" id="pwd" placeholder="••••••••" autocomplete="current-password"/>
+    <button class="login-btn" onclick="checkPassword()">Enter</button>
+    <p class="login-error" id="login-error"></p>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard">
+  <header>
+    <div class="header-left">
+      <p class="header-eyebrow">Stack's Bowers &amp; Ponterio · HK Office</p>
+      <h1>Crystal's<br><span>Dashboard</span></h1>
+    </div>
+    <div class="header-right">
+      <p class="datetime" id="datetime"></p>
+      <button class="logout-btn" onclick="logout()">Log out</button>
+    </div>
+  </header>
+
+  <main class="tools-section">
+    <p class="section-label">Productivity Tools</p>
+    <div class="tools-grid">
+
+      <div class="tool-card" onclick="window.open('https://unifiedvalidatorapppy-4ouzsklubybqzgtbqtxduf.streamlit.app/', '_blank')">
+        <span class="tool-number">01</span>
+        <div class="tool-icon">🔤</div>
+        <p class="tool-name">Translation Checker</p>
+        <p class="tool-desc">Validate and verify Chinese translations for auction catalog entries and numismatic descriptions.</p>
+        <span class="tool-link">Open tool</span>
+      </div>
+
+      <div class="tool-card" onclick="window.open('https://fedexcheck-dvs58nxyrcaiqtgwrzthbp.streamlit.app/', '_blank')">
+        <span class="tool-number">02</span>
+        <div class="tool-icon">📦</div>
+        <p class="tool-name">FedEx Invoice Checker</p>
+        <p class="tool-desc">Cross-check FedEx shipping invoices for accuracy and flag discrepancies automatically.</p>
+        <span class="tool-link">Open tool</span>
+      </div>
+
+      <div class="tool-card" onclick="window.open('https://iapn-planner-y4fehvyuwpehrorwkg3ff4.streamlit.app/', '_blank')">
+        <span class="tool-number">03</span>
+        <div class="tool-icon">🗓️</div>
+        <p class="tool-name">IAPN Planner</p>
+        <p class="tool-desc">Plan and manage IAPN event schedules, logistics, and coordination tasks in one place.</p>
+        <span class="tool-link">Open tool</span>
+      </div>
+
+    </div>
+
+    <p class="section-label" style="margin-top: 56px;">Leave Management — HK Office</p>
+    <div class="tools-grid">
+
+      <div class="tool-card" onclick="window.open('https://forms.office.com/Pages/ResponsePage.aspx?id=3TQ6iQLLcEyVfXlERt-P60zzaPtWAApAoNTxUZRB5M1UNFFXV0JOSEJZWTY2MldBVVZMN0JCMzJMQi4u', '_blank')">
+        <span class="tool-number">04</span>
+        <div class="tool-icon">🏖️</div>
+        <p class="tool-name">Leave Request</p>
+        <p class="tool-desc">Submit annual leave, sick leave, or compensation leave requests for the HK office.</p>
+        <span class="tool-link">Open form</span>
+      </div>
+
+      <div class="tool-card" onclick="window.open('https://forms.office.com/Pages/ResponsePage.aspx?id=3TQ6iQLLcEyVfXlERt-P60zzaPtWAApAoNTxUZRB5M1UOTE3UFVDNkJDTk4yV0FIRUtTRVYzWkdGVi4u', '_blank')">
+        <span class="tool-number">05</span>
+        <div class="tool-icon">⏱️</div>
+        <p class="tool-name">Extra Days Worked Log</p>
+        <p class="tool-desc">Log weekend work, public holiday overtime, and extra days worked to earn compensation leave.</p>
+        <span class="tool-link">Open form</span>
+      </div>
+
+    </div>
+  </main>
+
+  <footer>
+    <p class="footer-text">© 2026 Stack's Bowers &amp; Ponterio · Internal Use Only</p>
+    <div class="footer-dot"></div>
+    <p class="footer-text" id="tool-count">5 tools</p>
+  </footer>
+</div>
+
+<script>
+  const PASSWORD = "crystal2026"; // ← change this to your preferred password
+
+  function checkPassword() {
+    const input = document.getElementById('pwd').value;
+    if (input === PASSWORD) {
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'block';
+      sessionStorage.setItem('auth', 'true');
+    } else {
+      document.getElementById('login-error').textContent = 'Incorrect access code. Try again.';
+      document.getElementById('pwd').value = '';
+    }
+  }
+
+  document.getElementById('pwd').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') checkPassword();
+  });
+
+  function logout() {
+    sessionStorage.removeItem('auth');
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('dashboard').style.display = 'none';
+    document.getElementById('pwd').value = '';
+  }
+
+  // Auto-login if session active
+  if (sessionStorage.getItem('auth') === 'true') {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+  }
+
+  // Live clock
+  function updateTime() {
+    const now = new Date();
+    document.getElementById('datetime').textContent = now.toLocaleDateString('en-HK', {
+      weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'
+    }) + '  ·  ' + now.toLocaleTimeString('en-HK', { hour: '2-digit', minute: '2-digit' });
+  }
+  updateTime();
+  setInterval(updateTime, 1000);
+</script>
+</body>
+</html>
