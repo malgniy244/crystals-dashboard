@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>HK Shipping Calculator · Stack's Bowers</title>
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f5f0e8;
+      --surface: #faf7f2;
+      --border: #d4c9b0;
+      --dark: #1a1612;
+      --red: #8b2020;
+      --red-light: #a33030;
+      --muted: #7a6e5f;
+      --gold: #8b6914;
+      --success: #1a5c2a;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--dark);
+      font-family: 'IBM Plex Mono', monospace;
+      min-height: 100vh;
+      padding: 48px 24px;
+    }
+
+    /* subtle grid background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 40px 40px;
+      opacity: 0.2;
+      pointer-events: none;
+    }
+
+    .container {
+      max-width: 760px;
+      margin: 0 auto;
+      position: relative;
+    }
+
+    /* HEADER */
+    header {
+      margin-bottom: 48px;
+      border-bottom: 2px solid var(--dark);
+      padding-bottom: 24px;
+    }
+
+    .eyebrow {
+      font-size: 0.6rem;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    h1 {
+      font-family: 'Libre Baskerville', serif;
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: var(--dark);
+      line-height: 1.1;
+    }
+
+    h1 span {
+      color: var(--red);
+      font-style: italic;
+    }
+
+    .header-note {
+      margin-top: 10px;
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+    }
+
+    /* PACKAGES */
+    .packages-container {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .package-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 28px;
+      position: relative;
+      animation: slideIn 0.25s ease both;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .package-card::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+      background: var(--red);
+    }
+
+    .package-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .package-title {
+      font-family: 'Libre Baskerville', serif;
+      font-size: 0.9rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--dark);
+    }
+
+    .remove-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.1em;
+      padding: 4px 10px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: border-color 0.2s, color 0.2s;
+    }
+
+    .remove-btn:hover {
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    .fields-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field label {
+      font-size: 0.58rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .field input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--dark);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.85rem;
+      padding: 10px 12px;
+      outline: none;
+      transition: border-color 0.2s;
+      width: 100%;
+    }
+
+    .field input:focus {
+      border-color: var(--dark);
+    }
+
+    .field input::placeholder {
+      color: #bbb;
+    }
+
+    /* ADD PACKAGE BUTTON */
+    .add-btn {
+      width: 100%;
+      padding: 14px;
+      background: transparent;
+      border: 1px dashed var(--border);
+      color: var(--muted);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s, background 0.2s;
+      margin-bottom: 32px;
+    }
+
+    .add-btn:hover {
+      border-color: var(--dark);
+      color: var(--dark);
+      background: rgba(0,0,0,0.02);
+    }
+
+    /* CALCULATE BUTTON */
+    .calc-btn {
+      width: 100%;
+      padding: 16px;
+      background: var(--dark);
+      border: none;
+      color: var(--bg);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-bottom: 40px;
+    }
+
+    .calc-btn:hover {
+      background: var(--red);
+    }
+
+    /* RESULTS */
+    #results {
+      display: none;
+    }
+
+    .results-header {
+      font-family: 'Libre Baskerville', serif;
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid var(--dark);
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+
+    .results-header span {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.6rem;
+      color: var(--muted);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      font-weight: 400;
+    }
+
+    .result-package {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+
+    .result-pkg-header {
+      background: var(--dark);
+      color: var(--bg);
+      padding: 10px 20px;
+      font-size: 0.65rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .result-rows {
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .result-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    .result-row.total {
+      color: var(--dark);
+      font-weight: 400;
+      border-top: 1px solid var(--border);
+      padding-top: 8px;
+      margin-top: 4px;
+    }
+
+    .result-row .label { letter-spacing: 0.05em; }
+    .result-row .value { font-family: 'IBM Plex Mono', monospace; }
+    .result-row.total .value { color: var(--red); }
+
+    /* GRAND TOTAL */
+    .grand-total {
+      background: var(--dark);
+      color: var(--bg);
+      padding: 24px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 8px;
+    }
+
+    .grand-total-label {
+      font-family: 'Libre Baskerville', serif;
+      font-size: 1rem;
+      font-style: italic;
+    }
+
+    .grand-total-value {
+      font-size: 1.6rem;
+      font-family: 'Libre Baskerville', serif;
+      color: #e8c97a;
+    }
+
+    .grand-total-sub {
+      font-size: 0.6rem;
+      color: #888;
+      letter-spacing: 0.1em;
+      margin-top: 2px;
+    }
+
+    /* RESET */
+    .reset-btn {
+      width: 100%;
+      margin-top: 16px;
+      padding: 12px;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .reset-btn:hover {
+      border-color: var(--dark);
+      color: var(--dark);
+    }
+
+    .error-msg {
+      font-size: 0.65rem;
+      color: var(--red);
+      letter-spacing: 0.05em;
+      margin-bottom: 12px;
+      display: none;
+    }
+
+    footer {
+      margin-top: 48px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      font-size: 0.58rem;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+      text-align: center;
+    }
+
+    @media (max-width: 500px) {
+      .fields-row { grid-template-columns: 1fr; }
+      h1 { font-size: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <p class="eyebrow">Stack's Bowers &amp; Ponterio · Hong Kong Office</p>
+    <h1>Shipping Fee<br><span>Calculator</span></h1>
+    <p class="header-note">EMS · International Insurance · Per-lot Handling</p>
+  </header>
+
+  <div class="packages-container" id="packages-container">
+    <!-- Package cards injected here -->
+  </div>
+
+  <button class="add-btn" onclick="addPackage()">+ Add Another Package</button>
+  <p class="error-msg" id="error-msg">Please fill in all fields before calculating.</p>
+  <button class="calc-btn" onclick="calculate()">Calculate Shipping Fees →</button>
+
+  <div id="results">
+    <div class="results-header">
+      Breakdown <span id="results-subtitle"></span>
+    </div>
+    <div id="results-body"></div>
+    <div class="grand-total">
+      <div>
+        <div class="grand-total-label">Total Shipping</div>
+        <div class="grand-total-sub">All packages combined</div>
+      </div>
+      <div class="grand-total-value" id="grand-total-value">$0.00</div>
+    </div>
+    <button class="reset-btn" onclick="resetAll()">← Reset &amp; Start Over</button>
+  </div>
+
+  <footer>
+    Insurance: 0.5% of subtotal (min. $10.00) &nbsp;·&nbsp; Handling: $0.50/lot &nbsp;·&nbsp; Postage per EMS tier
+  </footer>
+
+</div>
+
+<script>
+  // Postage tiers
+  const TIERS = [
+    { max: 300,     fee: 35  },
+    { max: 1000,    fee: 40  },
+    { max: 2000,    fee: 45  },
+    { max: 3000,    fee: 50  },
+    { max: 5000,    fee: 55  },
+    { max: 10000,   fee: 60  },
+    { max: 25000,   fee: 70  },
+    { max: 50000,   fee: 80  },
+    { max: 75000,   fee: 90  },
+    { max: 100000,  fee: 100 },
+    { max: 200000,  fee: 125 },
+    { max: Infinity,fee: 500 },
+  ];
+
+  function getPostage(subtotal) {
+    for (const tier of TIERS) {
+      if (subtotal <= tier.max) return tier.fee;
+    }
+    return 500;
+  }
+
+  let packageCount = 0;
+
+  function addPackage() {
+    packageCount++;
+    const id = packageCount;
+    const container = document.getElementById('packages-container');
+    const card = document.createElement('div');
+    card.className = 'package-card';
+    card.id = `pkg-${id}`;
+    card.innerHTML = `
+      <div class="package-header">
+        <span class="package-title">Package ${id}</span>
+        ${id > 1 ? `<button class="remove-btn" onclick="removePackage(${id})">Remove</button>` : ''}
+      </div>
+      <div class="fields-row">
+        <div class="field">
+          <label>Subtotal (Hammer + Buyer's Fee)</label>
+          <input type="number" id="subtotal-${id}" placeholder="0.00" min="0" step="0.01"/>
+        </div>
+        <div class="field">
+          <label>Number of Lots</label>
+          <input type="number" id="lots-${id}" placeholder="0" min="1" step="1"/>
+        </div>
+      </div>
+    `;
+    container.appendChild(card);
+    // hide results when adding new package
+    document.getElementById('results').style.display = 'none';
+  }
+
+  function removePackage(id) {
+    const card = document.getElementById(`pkg-${id}`);
+    if (card) card.remove();
+    document.getElementById('results').style.display = 'none';
+  }
+
+  function fmt(n) {
+    return '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
+  function calculate() {
+    const cards = document.querySelectorAll('.package-card');
+    const errorMsg = document.getElementById('error-msg');
+
+    if (cards.length === 0) {
+      errorMsg.style.display = 'block';
+      errorMsg.textContent = 'Please add at least one package.';
+      return;
+    }
+
+    let packages = [];
+    let valid = true;
+
+    cards.forEach(card => {
+      const id = card.id.replace('pkg-', '');
+      const subtotalEl = document.getElementById(`subtotal-${id}`);
+      const lotsEl = document.getElementById(`lots-${id}`);
+      const subtotal = parseFloat(subtotalEl?.value);
+      const lots = parseInt(lotsEl?.value);
+
+      if (!subtotal || subtotal <= 0 || !lots || lots <= 0) {
+        valid = false;
+      } else {
+        packages.push({ id, subtotal, lots });
+      }
+    });
+
+    if (!valid) {
+      errorMsg.style.display = 'block';
+      errorMsg.textContent = 'Please fill in all fields with valid values.';
+      return;
+    }
+
+    errorMsg.style.display = 'none';
+
+    let grandTotal = 0;
+    let html = '';
+
+    packages.forEach((pkg, i) => {
+      const postage = getPostage(pkg.subtotal);
+      const insurance = Math.max(pkg.subtotal * 0.005, 10);
+      const handling = pkg.lots * 0.50;
+      const total = postage + insurance + handling;
+      grandTotal += total;
+
+      html += `
+        <div class="result-package">
+          <div class="result-pkg-header">
+            <span>Package ${i + 1}</span>
+            <span>Subtotal: ${fmt(pkg.subtotal)} · ${pkg.lots} lot${pkg.lots > 1 ? 's' : ''}</span>
+          </div>
+          <div class="result-rows">
+            <div class="result-row">
+              <span class="label">Postage (EMS)</span>
+              <span class="value">${fmt(postage)}</span>
+            </div>
+            <div class="result-row">
+              <span class="label">Insurance (0.5%, min $10.00)</span>
+              <span class="value">${fmt(insurance)}</span>
+            </div>
+            <div class="result-row">
+              <span class="label">Handling ($0.50 × ${pkg.lots} lot${pkg.lots > 1 ? 's' : ''})</span>
+              <span class="value">${fmt(handling)}</span>
+            </div>
+            <div class="result-row total">
+              <span class="label">Package ${i + 1} Total</span>
+              <span class="value">${fmt(total)}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+
+    document.getElementById('results-body').innerHTML = html;
+    document.getElementById('grand-total-value').textContent = fmt(grandTotal);
+    document.getElementById('results-subtitle').textContent = `${packages.length} package${packages.length > 1 ? 's' : ''}`;
+
+    const resultsEl = document.getElementById('results');
+    resultsEl.style.display = 'block';
+    resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function resetAll() {
+    document.getElementById('packages-container').innerHTML = '';
+    packageCount = 0;
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('error-msg').style.display = 'none';
+    addPackage();
+  }
+
+  // Init with one package
+  addPackage();
+</script>
+</body>
+</html>
