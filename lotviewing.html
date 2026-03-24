@@ -336,10 +336,12 @@
       padding: 10px 12px; background: var(--surface); border: 1px solid var(--border);
       border-radius: 8px; color: var(--text); font-size: 14px;
     }
+    .export-btns { display: flex; gap: 8px; flex-wrap: wrap; }
     .btn-export {
-      padding: 10px 18px; background: rgba(46,204,113,.15); color: var(--green);
-      border: 1px solid rgba(46,204,113,.3); border-radius: 8px; font-size: 14px; font-weight: 600;
+      padding: 10px 18px; border-radius: 8px; font-size: 14px; font-weight: 600;
     }
+    .btn-export-csv { background: rgba(46,204,113,.15); color: var(--green); border: 1px solid rgba(46,204,113,.3); }
+    .btn-export-pdf { background: rgba(233,69,96,.15); color: var(--accent); border: 1px solid rgba(233,69,96,.3); }
     .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
     .data-table th { text-align: left; padding: 10px 12px; background: var(--surface2); color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
     .data-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
@@ -371,6 +373,73 @@
       max-width: 90vw; text-align: center;
     }
     #toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* ── STOCKTAKE MODE ──────────────────────────────────────── */
+    #screen-stocktake { background: var(--bg); }
+    .stocktake-header {
+      background: #1a2e1a; padding: 14px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 2px solid #2ecc71; position: sticky; top: 0; z-index: 10;
+    }
+    .stocktake-header-info { line-height: 1.4; }
+    .stocktake-header-name { font-size: 15px; font-weight: 700; color: var(--green); }
+    .stocktake-header-sub  { font-size: 12px; color: #88cc88; }
+    .stocktake-progress-wrap { text-align: right; }
+    .stocktake-progress-text { font-size: 13px; font-weight: 700; color: var(--green); }
+    .stocktake-progress-sub  { font-size: 11px; color: #88cc88; }
+
+    .stocktake-body { flex: 1; display: flex; flex-direction: column; padding: 16px; gap: 16px; overflow-y: auto; }
+
+    .stocktake-section-title {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .8px; color: var(--text-muted); margin-bottom: 8px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .stocktake-section-badge {
+      background: var(--surface2); color: var(--text-muted);
+      border-radius: 20px; padding: 2px 8px; font-size: 11px;
+    }
+    .stocktake-section-badge.done { background: rgba(46,204,113,.2); color: var(--green); }
+
+    .stocktake-list { display: flex; flex-direction: column; background: var(--surface); border-radius: var(--radius); overflow: hidden; }
+    .stocktake-row {
+      padding: 14px 16px; display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+    }
+    .stocktake-row:last-child { border-bottom: none; }
+    .stocktake-row.verified { background: rgba(46,204,113,.08); }
+    .stocktake-row-id { font-size: 16px; font-weight: 700; }
+    .stocktake-row-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .stocktake-check {
+      width: 32px; height: 32px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; flex-shrink: 0;
+    }
+    .stocktake-check.pending { background: var(--surface2); border: 2px solid var(--border); color: transparent; }
+    .stocktake-check.done    { background: rgba(46,204,113,.2); border: 2px solid var(--green); color: var(--green); }
+
+    .btn-scan-stocktake {
+      width: 100%; padding: 22px;
+      background: linear-gradient(135deg, #1a6b3a 0%, #2ecc71 100%);
+      color: #fff; border-radius: var(--radius);
+      font-size: 19px; font-weight: 700; letter-spacing: .5px;
+      box-shadow: var(--shadow); transition: transform .1s;
+      position: sticky; bottom: 16px;
+    }
+    .btn-scan-stocktake:active { transform: scale(.97); }
+
+    .stocktake-empty {
+      padding: 20px 16px; font-size: 14px; color: var(--text-muted);
+      font-style: italic; text-align: center;
+    }
+    .stocktake-complete-banner {
+      background: rgba(46,204,113,.15); border: 1px solid rgba(46,204,113,.4);
+      border-radius: var(--radius); padding: 16px 20px;
+      text-align: center; font-size: 15px; font-weight: 600; color: var(--green);
+    }
+    .landing-btn-stocktake {
+      background: #1a3a1a; color: var(--green); border: 1px solid rgba(46,204,113,.4);
+    }
   </style>
 </head>
 <body>
@@ -383,12 +452,78 @@
   <div class="landing-title">Auction Lot Tracker</div>
   <div class="landing-sub">Box viewing management system</div>
   <button class="landing-btn btn-helper" onclick="showScreen('screen-helper-name')">I am a Helper</button>
+  <button class="landing-btn landing-btn-stocktake" onclick="showScreen('screen-stocktake-name')">Stocktake</button>
   <button class="landing-btn btn-admin"  onclick="showScreen('screen-admin-login')">Admin Dashboard</button>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════
+<!-- ═════════════════════════════════════════════════════════
+     STOCKTAKE: NAME ENTRY
+═════════════════════════════════════════════════════════ -->
+<div id="screen-stocktake-name" class="screen">
+  <div class="form-card" style="margin:auto;">
+    <h2>Stocktake</h2>
+    <p>Enter your name to begin the end-of-day stocktake. You will verify all boxes viewed today.</p>
+    <input id="stocktake-name-input" class="text-input" type="text" placeholder="e.g. Sarah" autocomplete="off" autocapitalize="words" />
+    <button id="btn-start-stocktake" class="btn-primary" style="background:var(--green);color:#000;" onclick="startStocktake()" disabled>Start Stocktake</button>
+    <button class="btn-primary" style="background:var(--surface2);color:var(--text-muted);border:1px solid var(--border);margin-top:10px;" onclick="showScreen('screen-landing')">Back</button>
+  </div>
+</div>
+
+<!-- ═════════════════════════════════════════════════════════
+     STOCKTAKE: MAIN SCREEN
+═════════════════════════════════════════════════════════ -->
+<div id="screen-stocktake" class="screen">
+  <!-- Sticky header -->
+  <div class="stocktake-header">
+    <div class="stocktake-header-info">
+      <div class="stocktake-header-name" id="st-helper-name">—</div>
+      <div class="stocktake-header-sub">End-of-Day Stocktake</div>
+    </div>
+    <div class="stocktake-progress-wrap">
+      <div class="stocktake-progress-text" id="st-progress">0 / 0</div>
+      <div class="stocktake-progress-sub">verified</div>
+    </div>
+  </div>
+
+  <!-- Scrollable body -->
+  <div class="stocktake-body">
+    <div id="st-complete-banner" class="stocktake-complete-banner hidden">
+      ✅ All boxes verified! Stocktake complete.
+    </div>
+
+    <!-- Coins section -->
+    <div>
+      <div class="stocktake-section-title">
+        🪙 Coin Boxes
+        <span class="stocktake-section-badge" id="st-coin-badge">0 / 0</span>
+      </div>
+      <div class="stocktake-list" id="st-coin-list">
+        <div class="stocktake-empty">Loading…</div>
+      </div>
+    </div>
+
+    <!-- Banknotes section -->
+    <div>
+      <div class="stocktake-section-title">
+        💵 Banknote Boxes
+        <span class="stocktake-section-badge" id="st-note-badge">0 / 0</span>
+      </div>
+      <div class="stocktake-list" id="st-note-list">
+        <div class="stocktake-empty">Loading…</div>
+      </div>
+    </div>
+
+    <button class="btn-scan-stocktake" onclick="openScanner('stocktake')">
+      📷 Scan Box to Verify
+    </button>
+
+    <button class="btn-primary" style="background:var(--surface2);color:var(--text-muted);border:1px solid var(--border);" onclick="showScreen('screen-landing')">Exit Stocktake</button>
+  </div>
+</div>
+
+<!-- ═════════════════════════════════════════════════════════
      HELPER: NAME ENTRY
-════════════════════════════════════════════════════════ -->
+═════════════════════════════════════════════════════════ -->
 <div id="screen-helper-name" class="screen">
   <div class="form-card" style="margin:auto;">
     <h2>Your Name</h2>
@@ -543,7 +678,10 @@
           <input id="report-box" class="report-input" type="text" placeholder="e.g. 19 or BOX-AA" />
         </div>
         <button class="btn-admin-search" onclick="loadReport()">Load Report</button>
-        <button class="btn-export" onclick="exportCSV()">Export CSV</button>
+        <div class="export-btns">
+          <button class="btn-export btn-export-csv" onclick="exportCSV()">Export CSV</button>
+          <button class="btn-export btn-export-pdf" onclick="exportPDF()">Export PDF</button>
+        </div>
       </div>
       <div id="report-table-wrap"></div>
     </div>
@@ -690,8 +828,12 @@ function changeTable() {
 // ── SCANNER ────────────────────────────────────────────────
 function openScanner(mode) {
   scannerMode = mode;
-  document.getElementById('scanner-title').textContent = mode === 'table' ? 'Scan Table QR Code' : 'Scan Box QR Code';
-  document.getElementById('scanner-hint').textContent  = mode === 'table' ? 'Point at the table QR code' : 'Point at the box QR code';
+  let title, hint;
+  if (mode === 'table') { title = 'Scan Table QR Code'; hint = 'Point at the table QR code'; }
+  else if (mode === 'stocktake') { title = 'Scan Box to Verify'; hint = 'Point at the box QR code to verify it'; }
+  else { title = 'Scan Box QR Code'; hint = 'Point at the box QR code'; }
+  document.getElementById('scanner-title').textContent = title;
+  document.getElementById('scanner-hint').textContent  = hint;
   document.getElementById('scanner-modal').classList.remove('hidden');
 
   if (scannerInstance) {
@@ -724,6 +866,10 @@ function closeScanner() {
 
 // ── HANDLE SCAN ────────────────────────────────────────────
 async function handleScan(code) {
+  if (scannerMode === 'stocktake') {
+    await handleStocktakeScan(code);
+    return;
+  }
   if (scannerMode === 'table') {
     if (!code.startsWith('TABLE-')) {
       showConfirm('That doesn\'t look like a table QR code. Please try again.', true);
@@ -1111,7 +1257,16 @@ async function loadReport() {
     if (boxId) query += '&box_id=eq.' + encodeURIComponent(boxId);
 
     const logs = await sbFetch(query);
-    reportData = buildReportRows(logs || []);
+
+    // Also fetch stocktake_log for the same date range to add verification info
+    let stQuery = 'stocktake_log?select=box_id,helper_name,session_date';
+    if (from) stQuery += '&session_date=gte.' + encodeURIComponent(from);
+    if (to)   stQuery += '&session_date=lte.' + encodeURIComponent(to);
+    const stLogs = await sbFetch(stQuery).catch(() => []);
+    const stVerifiedMap = {};
+    (stLogs || []).forEach(r => { stVerifiedMap[r.box_id] = r.helper_name; });
+
+    reportData = buildReportRows(logs || [], stVerifiedMap);
 
     if (!reportData.length) {
       wrap.innerHTML = '<div style="color:var(--text-muted);padding:16px;font-style:italic;">No records found for the selected filters.</div>';
@@ -1125,7 +1280,7 @@ async function loadReport() {
         <thead>
           <tr>
             <th>Box ID</th><th>Table</th><th>Helper</th>
-            <th>Check-in</th><th>Check-out</th><th>Duration (min)</th>
+            <th>Check-in</th><th>Check-out</th><th>Duration (min)</th><th>Stocktake Verified By</th>
           </tr>
         </thead>
         <tbody>
@@ -1137,6 +1292,7 @@ async function loadReport() {
               <td>${r.checkin_time}</td>
               <td>${r.checkout_time}</td>
               <td>${r.duration_min}</td>
+              <td>${r.stocktake_verified_by || '—'}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -1148,7 +1304,7 @@ async function loadReport() {
   }
 }
 
-function buildReportRows(logs) {
+function buildReportRows(logs, stVerifiedMap = {}) {
   const sessions = [];
   const pending  = {};
   const sorted   = [...logs].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
@@ -1168,7 +1324,8 @@ function buildReportRows(logs) {
           helper_name: cin.helper_name,
           checkin_time: formatDateTime(inTime),
           checkout_time: formatDateTime(outTime),
-          duration_min: dur >= 0 ? dur : '—'
+          duration_min: dur >= 0 ? dur : '—',
+          stocktake_verified_by: stVerifiedMap[cin.box_id] || null
         });
         delete pending[log.box_id];
       } else {
@@ -1178,7 +1335,8 @@ function buildReportRows(logs) {
           helper_name: log.helper_name,
           checkin_time: '—',
           checkout_time: formatDateTime(new Date(log.timestamp)),
-          duration_min: '—'
+          duration_min: '—',
+          stocktake_verified_by: stVerifiedMap[log.box_id] || null
         });
       }
     }
@@ -1191,7 +1349,8 @@ function buildReportRows(logs) {
       helper_name: cin.helper_name,
       checkin_time: formatDateTime(new Date(cin.timestamp)),
       checkout_time: 'Still Viewing',
-      duration_min: '—'
+      duration_min: '—',
+      stocktake_verified_by: stVerifiedMap[cin.box_id] || null
     });
   }
 
@@ -1200,14 +1359,61 @@ function buildReportRows(logs) {
 
 function exportCSV() {
   if (!reportData.length) { showToast('Load a report first.'); return; }
-  const header = ['Box ID', 'Table', 'Helper Name', 'Check-in Time', 'Check-out Time', 'Duration (minutes)'];
-  const rows   = reportData.map(r => [r.box_id, r.table_id || '', r.helper_name, r.checkin_time, r.checkout_time, r.duration_min]);
+  const header = ['Box ID', 'Table', 'Helper Name', 'Check-in Time', 'Check-out Time', 'Duration (minutes)', 'Stocktake Verified By'];
+  const rows   = reportData.map(r => [r.box_id, r.table_id || '', r.helper_name, r.checkin_time, r.checkout_time, r.duration_min, r.stocktake_verified_by || '']);
   const csv    = [header, ...rows].map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n');
   const blob   = new Blob([csv], { type: 'text/csv' });
   const url    = URL.createObjectURL(blob);
   const a      = document.createElement('a');
   a.href = url; a.download = 'auction_scan_log_' + new Date().toISOString().slice(0,10) + '.csv';
   a.click(); URL.revokeObjectURL(url);
+}
+
+function exportPDF() {
+  if (!reportData.length) { showToast('Load a report first.'); return; }
+
+  const dateStr = new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+  const fromVal = document.getElementById('report-from').value || 'All';
+  const toVal   = document.getElementById('report-to').value   || 'All';
+
+  const rows = reportData.map((r, i) => `
+    <tr class="${i % 2 === 0 ? 'even' : 'odd'}">
+      <td>${r.box_id}</td>
+      <td>${r.table_id || '-'}</td>
+      <td>${r.helper_name}</td>
+      <td>${r.checkin_time ? new Date(r.checkin_time).toLocaleString() : '-'}</td>
+      <td>${r.checkout_time ? new Date(r.checkout_time).toLocaleString() : '-'}</td>
+      <td>${r.duration_min != null ? r.duration_min + ' min' : '-'}</td>
+    </tr>`).join('');
+
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head><title>Scan Log Report – ${dateStr}</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family: Arial, sans-serif; font-size: 11px; color: #111; padding: 20px; }
+    .print-btn { display:block; margin-bottom:16px; padding:8px 20px; font-size:13px; cursor:pointer; background:#e94560; color:#fff; border:none; border-radius:6px; }
+    h1 { font-size: 16px; margin-bottom: 4px; }
+    .meta { font-size: 11px; color: #666; margin-bottom: 14px; }
+    table { width:100%; border-collapse:collapse; }
+    th { background:#1a1a2e; color:#fff; padding:7px 10px; text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.5px; }
+    td { padding:6px 10px; border-bottom:1px solid #e0e0e0; }
+    tr.even td { background:#f9f9f9; }
+    tr.odd  td { background:#fff; }
+    tfoot td { font-weight:700; background:#f0f0f0; padding:7px 10px; }
+    @media print { .print-btn { display:none; } @page { margin:15mm; size:A4 landscape; } }
+  </style></head><body>
+  <button class="print-btn" onclick="window.print()">\uD83D\uDDA8 Print / Save as PDF</button>
+  <h1>Auction Lot Tracker – Scan Log Report</h1>
+  <div class="meta">Date range: ${fromVal} to ${toVal} &nbsp;|&nbsp; Generated: ${new Date().toLocaleString()} &nbsp;|&nbsp; Total records: ${reportData.length}</div>
+  <table>
+    <thead><tr>
+      <th>Box ID</th><th>Table</th><th>Helper</th><th>Check-in</th><th>Check-out</th><th>Duration</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr><td colspan="6">${reportData.length} record(s) total</td></tr></tfoot>
+  </table>
+  </body></html>`);
+  win.document.close();
 }
 
 // ── QR CODE GENERATOR ──────────────────────────────────────
@@ -1398,6 +1604,234 @@ function showToast(msg) {
   el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), 3000);
 }
+
+// ── STOCKTAKE STATE ───────────────────────────────────────
+let stocktakeName = '';
+// stocktakeVerified: Set of boxIds verified in this session
+let stocktakeVerified = new Set();
+// stocktakeBoxes: all boxes that need stocktaking today
+// { id, type: 'coin'|'note', status, current_table, current_helper }
+let stocktakeBoxes = [];
+let stocktakeRefreshInterval = null;
+
+// ── STOCKTAKE NAME INPUT ───────────────────────────────────
+document.getElementById('stocktake-name-input').addEventListener('input', function() {
+  document.getElementById('btn-start-stocktake').disabled = this.value.trim().length < 2;
+});
+document.getElementById('stocktake-name-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') startStocktake();
+});
+
+async function startStocktake() {
+  const name = document.getElementById('stocktake-name-input').value.trim();
+  if (name.length < 2) return;
+  stocktakeName = name;
+  document.getElementById('st-helper-name').textContent = name;
+  showScreen('screen-stocktake');
+  await loadStocktakeList();
+  // Refresh every 30s so multiple helpers see each other's verifications live
+  if (stocktakeRefreshInterval) clearInterval(stocktakeRefreshInterval);
+  stocktakeRefreshInterval = setInterval(loadStocktakeList, 30000);
+}
+
+// ── LOAD TODAY'S STOCKTAKE LIST ────────────────────────────
+async function loadStocktakeList() {
+  try {
+    // Get today's date in HKT (UTC+8)
+    const nowHKT = new Date(Date.now() + 8 * 3600000);
+    const todayHKT = nowHKT.toISOString().slice(0, 10); // YYYY-MM-DD
+
+    // Fetch all scan_log entries for today (HKT midnight = UTC 16:00 previous day)
+    const dayStartUTC = todayHKT + 'T16:00:00.000Z'; // HKT midnight = UTC 16:00 prev day
+    // Actually compute correctly:
+    const hktMidnightUTC = new Date(todayHKT + 'T00:00:00+08:00').toISOString();
+
+    const logs = await sbFetch(
+      'scan_log?select=box_id&timestamp=gte.' + encodeURIComponent(hktMidnightUTC) +
+      '&order=box_id.asc'
+    );
+
+    // Unique box IDs seen today
+    const seenIds = [...new Set((logs || []).map(l => l.box_id))];
+
+    if (!seenIds.length) {
+      stocktakeBoxes = [];
+      renderStocktakeList();
+      return;
+    }
+
+    // Fetch current status of those boxes
+    const idFilter = seenIds.map(id => encodeURIComponent(id)).join(',');
+    const boxes = await sbFetch(
+      'boxes?id=in.(' + seenIds.map(id => '"' + id + '"').join(',') + ')&select=*'
+    );
+
+    // Also fetch stocktake_log for today to see what's already verified
+    const stLogs = await sbFetch(
+      'stocktake_log?session_date=eq.' + todayHKT + '&select=box_id,helper_name,verified_at'
+    );
+    const verifiedMap = {};
+    (stLogs || []).forEach(r => { verifiedMap[r.box_id] = r; });
+
+    // Merge verified from DB into local set
+    Object.keys(verifiedMap).forEach(id => stocktakeVerified.add(id));
+
+    stocktakeBoxes = (boxes || []).map(b => ({
+      id: b.id,
+      type: /^BOX-[A-Z]+$/.test(b.id) ? 'note' : 'coin',
+      status: b.status,
+      current_table: b.current_table,
+      current_helper: b.current_helper,
+      verifiedBy: verifiedMap[b.id] ? verifiedMap[b.id].helper_name : null,
+      verifiedAt: verifiedMap[b.id] ? verifiedMap[b.id].verified_at : null
+    }));
+
+    renderStocktakeList();
+  } catch (err) {
+    showToast('Stocktake load error: ' + err.message);
+  }
+}
+
+// ── RENDER STOCKTAKE LIST ──────────────────────────────────
+function renderStocktakeList() {
+  const coins = stocktakeBoxes.filter(b => b.type === 'coin');
+  const notes = stocktakeBoxes.filter(b => b.type === 'note');
+
+  const total = stocktakeBoxes.length;
+  const verified = stocktakeBoxes.filter(b => stocktakeVerified.has(b.id)).length;
+
+  document.getElementById('st-progress').textContent = verified + ' / ' + total;
+
+  // Complete banner
+  const banner = document.getElementById('st-complete-banner');
+  if (total > 0 && verified === total) {
+    banner.classList.remove('hidden');
+  } else {
+    banner.classList.add('hidden');
+  }  
+
+  function renderSection(list, listElId, badgeElId) {
+    const el = document.getElementById(listElId);
+    const badge = document.getElementById(badgeElId);
+    const sectionVerified = list.filter(b => stocktakeVerified.has(b.id)).length;
+    badge.textContent = sectionVerified + ' / ' + list.length;
+    badge.className = 'stocktake-section-badge' + (sectionVerified === list.length && list.length > 0 ? ' done' : '');
+
+    if (!list.length) {
+      el.innerHTML = '<div class="stocktake-empty">No boxes in this category today.</div>';
+      return;
+    }
+
+    el.innerHTML = list.map(b => {
+      const isDone = stocktakeVerified.has(b.id);
+      const meta = isDone
+        ? 'Verified by ' + b.verifiedBy
+        : (b.status === 'In Viewing' ? 'Still out — ' + (b.current_table || '') + ' / ' + (b.current_helper || '') : 'Returned');
+      return `
+        <div class="stocktake-row ${isDone ? 'verified' : ''}">
+          <div>
+            <div class="stocktake-row-id">${b.id}</div>
+            <div class="stocktake-row-meta">${meta}</div>
+          </div>
+          <div class="stocktake-check ${isDone ? 'done' : 'pending'}">${isDone ? '✓' : ''}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  renderSection(coins, 'st-coin-list', 'st-coin-badge');
+  renderSection(notes, 'st-note-list', 'st-note-badge');
+}
+
+// ── HANDLE STOCKTAKE SCAN ──────────────────────────────────
+async function handleStocktakeScan(code) {
+  if (!code.startsWith('BOX-')) {
+    showToast('Please scan a box QR code.');
+    return;
+  }
+
+  if (stocktakeVerified.has(code)) {
+    showToast(code + ' already verified.');
+    return;
+  }
+
+  // Check if this box is in today's list
+  const box = stocktakeBoxes.find(b => b.id === code);
+  if (!box) {
+    showToast(code + ' was not viewed today — not in stocktake list.');
+    return;
+  }
+
+  try {
+    const nowHKT = new Date(Date.now() + 8 * 3600000);
+    const todayHKT = nowHKT.toISOString().slice(0, 10);
+    const nowISO = new Date().toISOString();
+
+    // If box is still In Viewing, auto-checkout it first
+    if (box.status === 'In Viewing') {
+      await insertLog({ box_id: code, table_id: box.current_table, helper_name: stocktakeName, action: 'CHECK_OUT', timestamp: nowISO });
+      await updateBox(code, { status: 'Available', current_table: null, current_helper: null, checked_in_at: null });
+      box.status = 'Available';
+    }
+
+    // Record stocktake verification
+    await sbFetch('stocktake_log', {
+      method: 'POST',
+      headers: { 'Prefer': 'resolution=merge-duplicates,return=representation' },
+      body: JSON.stringify({ session_date: todayHKT, box_id: code, helper_name: stocktakeName, verified_at: nowISO })
+    });
+
+    stocktakeVerified.add(code);
+    box.verifiedBy = stocktakeName;
+    box.verifiedAt = nowISO;
+    renderStocktakeList();
+    showToast('✓ ' + code + ' verified!');
+  } catch (err) {
+    showToast('Error: ' + err.message);
+  }
+}
+
+// ── HKT MIDNIGHT RESET ─────────────────────────────────────
+// Boxes reset to Available at HKT midnight (UTC 16:00).
+// Data is archived (scan_log and stocktake_log are kept).
+// Only box statuses are reset.
+async function runHKTMidnightReset() {
+  try {
+    // Get current HKT time
+    const nowUTC = new Date();
+    const nowHKT = new Date(nowUTC.getTime() + 8 * 3600000);
+    const hktHour = nowHKT.getUTCHours();
+    const hktMin  = nowHKT.getUTCMinutes();
+
+    // Only run between 00:00 and 00:05 HKT
+    if (hktHour !== 0 || hktMin > 5) return;
+
+    // Check if we already ran today
+    const todayHKT = nowHKT.toISOString().slice(0, 10);
+    const lastReset = localStorage.getItem('lastHKTReset');
+    if (lastReset === todayHKT) return;
+
+    // Reset all In Viewing boxes to Available
+    const stale = await sbFetch('boxes?status=eq.In+Viewing&select=*');
+    if (stale && stale.length) {
+      const nowISO = nowUTC.toISOString();
+      for (const box of stale) {
+        await insertLog({ box_id: box.id, table_id: box.current_table, helper_name: 'MIDNIGHT-RESET', action: 'CHECK_OUT', timestamp: nowISO });
+        await updateBox(box.id, { status: 'Available', current_table: null, current_helper: null, checked_in_at: null });
+      }
+    }
+
+    localStorage.setItem('lastHKTReset', todayHKT);
+    console.log('[HKT Reset] Completed at', nowISO);
+  } catch (e) {
+    console.warn('[HKT Reset] Error:', e);
+  }
+}
+
+// Run reset check every 5 minutes
+setInterval(runHKTMidnightReset, 5 * 60 * 1000);
+// Also run once on load
+runHKTMidnightReset();
 
 // ── DEFAULT REPORT DATE RANGE ──────────────────────────────
 (function setDefaultDates() {
