@@ -718,18 +718,15 @@
 <!-- ═══════════════════════════════════════════════════════
      QR SCANNER MODAL
 ════════════════════════════════════════════════════════ -->
-<!-- Hidden native camera input for iOS/Android native QR detection -->
-<input id="native-qr-input" type="file" accept="image/*" capture="environment"
-  style="display:none" onchange="handleNativeCapture(event)" />
-
-<!-- ZXing live viewfinder modal (fallback / desktop) -->
+<!-- ZXing live viewfinder scanner modal -->
 <div id="scanner-modal" class="modal-overlay hidden">
   <div class="modal-box">
     <div class="modal-header">
       <h3 id="scanner-title">Scan QR Code</h3>
       <button class="btn-close" onclick="closeScanner()">✕</button>
     </div>
-    <video id="qr-video" style="width:100%;border-radius:8px;background:#000;" playsinline></video>
+    <!-- ZXing renders into this video element -->
+    <video id="qr-video" style="width:100%;border-radius:8px;background:#000;max-height:60vh;object-fit:cover;" playsinline muted autoplay></video>
     <div class="modal-hint" id="scanner-hint">Point your camera at the QR code</div>
   </div>
 </div>
@@ -830,76 +827,63 @@ function changeTable() {
   showScreen('screen-helper-table');
 }
 
-// ── SCANNER ────────────────────────────────────────────
-// Strategy:
-//   1. On mobile (iOS/Android): use native camera input (capture="environment").
-//      The phone's own camera app opens, which has full native QR detection.
-//      Result is an image file; ZXing decodes it.
-//   2. On desktop or if native input is unavailable: open ZXing live viewfinder.
+// ── SCANNER (ZXing-js live viewfinder) ─────────────────────────
+// Uses ZXing-js BrowserQRCodeReader which:
+//  - Scans the FULL video frame (not a small box)
+//  - Runs at the camera's native frame rate
+//  - Works at much greater distances than html5-qrcode
+//  - Requests the rear camera with highest available resolution
 
-const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 let zxingReader = null;
-let zxingStream = null;
 
 function openScanner(mode) {
   scannerMode = mode;
   let title, hint;
-  if (mode === 'table')     { title = 'Scan Table QR Code';    hint = 'Point at the table QR code'; }
-  else if (mode === 'stocktake') { title = 'Scan Box to Verify'; hint = 'Point at the box QR code to verify it'; }
-  else                      { title = 'Scan Box QR Code';      hint = 'Point at the box QR code'; }
+  if (mode === 'table')          { title = 'Scan Table QR Code';    hint = 'Point camera at the table QR code'; }
+  else if (mode === 'stocktake') { title = 'Scan Box to Verify';    hint = 'Point camera at the box QR code'; }
+  else                           { title = 'Scan Box QR Code';      hint = 'Point camera at the box QR code'; }
 
-  if (isMobile) {
-    // Use native camera — fastest, most sensitive
-    document.getElementById('scanner-title'); // not shown, native UI takes over
-    const input = document.getElementById('native-qr-input');
-    input.value = ''; // reset so same file triggers change
-    input.click();
-  } else {
-    // Desktop fallback: ZXing live viewfinder
-    document.getElementById('scanner-title').textContent = title;
-    document.getElementById('scanner-hint').textContent  = hint;
-    document.getElementById('scanner-modal').classList.remove('hidden');
-    startZXingLive();
-  }
+  document.getElementById('scanner-title').textContent = title;
+  document.getElementById('scanner-hint').textContent  = hint;
+  document.getElementById('scanner-modal').classList.remove('hidden');
+  startZXingLive();
 }
 
-// Native camera capture handler (mobile)
-async function handleNativeCapture(event) {
-  const file = event.target.files && event.target.files[0];
-  if (!file) return;
-
-  try {
-    const reader = new ZXing.BrowserQRCodeReader();
-    const imgEl  = document.createElement('img');
-    imgEl.src    = URL.createObjectURL(file);
-    await new Promise(res => { imgEl.onload = res; });
-    const result = await reader.decodeFromImageElement(imgEl);
-    URL.revokeObjectURL(imgEl.src);
-    handleScan(result.getText().trim().toUpperCase());
-  } catch (err) {
-    // If ZXing can't decode, fall back to live viewfinder
-    showToast('Could not read QR code. Try again or use the viewfinder.');
-    // Open live viewfinder as fallback
-    document.getElementById('scanner-modal').classList.remove('hidden');
-    startZXingLive();
-  }
-}
-
-// ZXing live viewfinder (desktop primary, mobile fallback)
-function startZXingLive() {
+async function startZXingLive() {
   stopZXingLive();
   try {
-    zxingReader = new ZXing.BrowserQRCodeReader();
+    // Use ZXing hints to maximise detection speed and range
+    const hints = new Map();
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+
+    zxingReader = new ZXing.BrowserQRCodeReader(hints);
+
+    // Prefer rear camera at highest resolution
+    const constraints = {
+      video: {
+        facingMode: { ideal: 'environment' },
+        width:  { ideal: 1920 },
+        height: { ideal: 1080 }
+      }
+    };
+
     const videoEl = document.getElementById('qr-video');
-    zxingReader.decodeFromVideoDevice(null, videoEl, (result, err) => {
+
+    // Get the stream ourselves so we can pass it to ZXing
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    videoEl.srcObject = stream;
+    await videoEl.play();
+
+    // Now start continuous decode from the live video element
+    zxingReader.decodeFromStream(stream, videoEl, (result, err) => {
       if (result) {
         closeScanner();
         handleScan(result.getText().trim().toUpperCase());
       }
-      // err is normal when no QR in frame — ignore
+      // NotFoundException is thrown every frame when no QR is visible — ignore it
     });
   } catch (e) {
-    showToast('Camera error: ' + e.message);
+    showToast('Camera error: ' + (e.message || e));
     closeScanner();
   }
 }
@@ -908,6 +892,12 @@ function stopZXingLive() {
   if (zxingReader) {
     try { zxingReader.reset(); } catch(e) {}
     zxingReader = null;
+  }
+  // Also stop any lingering video tracks
+  const videoEl = document.getElementById('qr-video');
+  if (videoEl && videoEl.srcObject) {
+    videoEl.srcObject.getTracks().forEach(t => t.stop());
+    videoEl.srcObject = null;
   }
 }
 
