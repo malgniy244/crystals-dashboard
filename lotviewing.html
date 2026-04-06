@@ -347,6 +347,49 @@
     .data-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
     .data-table tr:last-child td { border-bottom: none; }
 
+    /* Analytics Dashboard */
+    .analytics-section { margin-bottom: 28px; }
+    .analytics-section-title {
+      font-size: 13px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .8px; color: var(--text-muted);
+      margin-bottom: 12px; padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+    /* Summary cards */
+    .summary-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    @media (min-width: 600px) { .summary-cards { grid-template-columns: repeat(4, 1fr); } }
+    .summary-card {
+      background: var(--surface); border-radius: var(--radius);
+      padding: 16px 14px; text-align: center;
+      border: 1px solid var(--border);
+    }
+    .summary-card .card-value { font-size: 28px; font-weight: 800; color: var(--accent); line-height: 1; }
+    .summary-card .card-value.green { color: var(--green); }
+    .summary-card .card-value.orange { color: var(--orange); }
+    .summary-card .card-value.yellow { color: var(--yellow); }
+    .summary-card .card-label { font-size: 11px; color: var(--text-muted); margin-top: 6px; line-height: 1.3; }
+    /* Top-box ranking table */
+    .rank-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .rank-table th { text-align: left; padding: 8px 10px; background: var(--surface2); color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+    .rank-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); }
+    .rank-table tr:last-child td { border-bottom: none; }
+    .rank-num { font-weight: 700; color: var(--text-muted); width: 28px; }
+    .rank-bar-wrap { width: 100%; background: var(--surface2); border-radius: 4px; height: 6px; margin-top: 4px; }
+    .rank-bar { height: 6px; border-radius: 4px; background: var(--accent); }
+    .rank-bar.green { background: var(--green); }
+    /* Busiest hour mini chart */
+    .hour-chart { display: flex; align-items: flex-end; gap: 3px; height: 60px; margin-top: 8px; }
+    .hour-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+    .hour-bar { width: 100%; background: var(--accent); border-radius: 3px 3px 0 0; min-height: 2px; }
+    .hour-label { font-size: 9px; color: var(--text-muted); }
+    .report-tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .report-tab-btn {
+      padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 600;
+      background: var(--surface); color: var(--text-muted); border: 1px solid var(--border);
+      transition: all .15s;
+    }
+    .report-tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
     /* QR Codes */
     .qr-controls { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; align-items: flex-end; }
     .qr-select {
@@ -663,7 +706,9 @@
 
     <!-- REPORTS TAB -->
     <div id="tab-reports" class="tab-panel">
-      <div class="section-title" style="margin-top:8px;">Scan Log Report</div>
+      <div class="section-title" style="margin-top:8px;">Reports &amp; Analytics</div>
+
+      <!-- Date controls -->
       <div class="report-controls">
         <div class="report-field">
           <label>From</label>
@@ -673,17 +718,72 @@
           <label>To</label>
           <input id="report-to" class="report-input" type="date" />
         </div>
-        <div class="report-field">
-          <label>Box ID (optional)</label>
-          <input id="report-box" class="report-input" type="text" placeholder="e.g. 19 or BOX-AA" />
-        </div>
         <button class="btn-admin-search" onclick="loadReport()">Load Report</button>
         <div class="export-btns">
           <button class="btn-export btn-export-csv" onclick="exportCSV()">Export CSV</button>
           <button class="btn-export btn-export-pdf" onclick="exportPDF()">Export PDF</button>
         </div>
       </div>
-      <div id="report-table-wrap"></div>
+
+      <!-- Sub-tabs: Analytics / Raw Log -->
+      <div class="report-tabs">
+        <button class="report-tab-btn active" id="rtab-analytics" onclick="switchReportTab('analytics')">Analytics</button>
+        <button class="report-tab-btn" id="rtab-raw" onclick="switchReportTab('raw')">Raw Log</button>
+      </div>
+
+      <!-- ANALYTICS VIEW -->
+      <div id="report-analytics">
+        <!-- Summary Cards -->
+        <div class="analytics-section">
+          <div class="analytics-section-title">Daily Summary</div>
+          <div class="summary-cards" id="summary-cards">
+            <div class="summary-card"><div class="card-value" id="sc-coin">—</div><div class="card-label">Unique Coin Boxes Viewed</div></div>
+            <div class="summary-card"><div class="card-value green" id="sc-note">—</div><div class="card-label">Unique Banknote Boxes Viewed</div></div>
+            <div class="summary-card"><div class="card-value orange" id="sc-sessions">—</div><div class="card-label">Total Viewing Sessions</div></div>
+            <div class="summary-card"><div class="card-value yellow" id="sc-busyhour">—</div><div class="card-label">Busiest Hour</div></div>
+          </div>
+        </div>
+
+        <!-- Busiest Hour Chart -->
+        <div class="analytics-section">
+          <div class="analytics-section-title">Sessions by Hour (HKT)</div>
+          <div class="hour-chart" id="hour-chart"></div>
+        </div>
+
+        <!-- Top 20 Coin Boxes -->
+        <div class="analytics-section">
+          <div class="analytics-section-title">Top 20 Most Viewed — Coin Boxes</div>
+          <div style="overflow-x:auto;">
+            <table class="rank-table" id="rank-coin">
+              <thead><tr><th>#</th><th>Box ID</th><th>Sessions</th><th>Trend</th></tr></thead>
+              <tbody><tr><td colspan="4" style="color:var(--text-muted);font-style:italic;">Load a report to see rankings.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Top 20 Banknote Boxes -->
+        <div class="analytics-section">
+          <div class="analytics-section-title">Top 20 Most Viewed — Banknote Boxes</div>
+          <div style="overflow-x:auto;">
+            <table class="rank-table" id="rank-note">
+              <thead><tr><th>#</th><th>Box ID</th><th>Sessions</th><th>Trend</th></tr></thead>
+              <tbody><tr><td colspan="4" style="color:var(--text-muted);font-style:italic;">Load a report to see rankings.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- RAW LOG VIEW -->
+      <div id="report-raw" class="hidden">
+        <div class="report-controls" style="margin-bottom:12px;">
+          <div class="report-field">
+            <label>Filter by Box ID (optional)</label>
+            <input id="report-box" class="report-input" type="text" placeholder="e.g. 19 or A or AA" />
+          </div>
+          <button class="btn-admin-search" onclick="filterRawLog()">Filter</button>
+        </div>
+        <div id="report-table-wrap"></div>
+      </div>
     </div>
 
     <!-- QR CODES TAB -->
@@ -1358,23 +1458,37 @@ async function runAutoCheckout() {
 }
 
 // ── REPORTING ──────────────────────────────────────────────
+let allReportLogs = []; // raw logs for the selected date range
+
+function switchReportTab(tab) {
+  document.getElementById('report-analytics').classList.toggle('hidden', tab !== 'analytics');
+  document.getElementById('report-raw').classList.toggle('hidden', tab !== 'raw');
+  document.getElementById('rtab-analytics').classList.toggle('active', tab === 'analytics');
+  document.getElementById('rtab-raw').classList.toggle('active', tab === 'raw');
+}
+
 async function loadReport() {
   const from = document.getElementById('report-from').value;
   const to   = document.getElementById('report-to').value;
-  const rawBoxId = document.getElementById('report-box').value.trim().toUpperCase();
-  const boxId = rawBoxId && /^\d+$/.test(rawBoxId) ? 'BOX-' + rawBoxId : rawBoxId;
-  const wrap  = document.getElementById('report-table-wrap');
-  wrap.innerHTML = '<div style="color:var(--text-muted);padding:16px;">Loading…</div>';
+
+  // Show loading state in both views
+  document.getElementById('sc-coin').textContent = '…';
+  document.getElementById('sc-note').textContent = '…';
+  document.getElementById('sc-sessions').textContent = '…';
+  document.getElementById('sc-busyhour').textContent = '…';
+  document.getElementById('hour-chart').innerHTML = '<div style="color:var(--text-muted);font-size:12px;">Loading…</div>';
+  document.getElementById('report-table-wrap').innerHTML = '<div style="color:var(--text-muted);padding:16px;">Loading…</div>';
 
   try {
-    let query = 'scan_log?select=*&order=timestamp.desc&limit=2000';
-    if (from)  query += '&timestamp=gte.' + encodeURIComponent(from + 'T00:00:00Z');
-    if (to)    query += '&timestamp=lte.' + encodeURIComponent(to   + 'T23:59:59Z');
-    if (boxId) query += '&box_id=eq.' + encodeURIComponent(boxId);
+    // Fetch all CHECK_IN logs for the date range (no box filter at this stage)
+    let query = 'scan_log?select=*&order=timestamp.asc&limit=5000';
+    if (from) query += '&timestamp=gte.' + encodeURIComponent(from + 'T00:00:00+08:00');
+    if (to)   query += '&timestamp=lte.' + encodeURIComponent(to   + 'T23:59:59+08:00');
 
     const logs = await sbFetch(query);
+    allReportLogs = logs || [];
 
-    // Also fetch stocktake_log for the same date range to add verification info
+    // Also fetch stocktake_log
     let stQuery = 'stocktake_log?select=box_id,helper_name,session_date';
     if (from) stQuery += '&session_date=gte.' + encodeURIComponent(from);
     if (to)   stQuery += '&session_date=lte.' + encodeURIComponent(to);
@@ -1382,42 +1496,139 @@ async function loadReport() {
     const stVerifiedMap = {};
     (stLogs || []).forEach(r => { stVerifiedMap[r.box_id] = r.helper_name; });
 
-    reportData = buildReportRows(logs || [], stVerifiedMap);
+    reportData = buildReportRows(allReportLogs, stVerifiedMap);
 
-    if (!reportData.length) {
-      wrap.innerHTML = '<div style="color:var(--text-muted);padding:16px;font-style:italic;">No records found for the selected filters.</div>';
+    // ── Build analytics ────────────────────────────────────
+    buildAnalytics(allReportLogs);
+
+    // ── Populate raw log table ──────────────────────────────
+    renderRawLog(reportData);
+
+  } catch (err) {
+    document.getElementById('sc-coin').textContent = 'Err';
+    document.getElementById('report-table-wrap').innerHTML = '<div style="color:var(--red);padding:16px;">Error: ' + err.message + '</div>';
+  }
+}
+
+function buildAnalytics(logs) {
+  // Only CHECK_IN events for counting sessions and unique boxes
+  const checkIns = logs.filter(l => l.action === 'CHECK_IN');
+
+  // Classify box type: coin = BOX-<number>, banknote = BOX-<letters>
+  const isCoin = id => /^BOX-\d+$/.test(id);
+  const isNote = id => /^BOX-[A-Z]+$/.test(id);
+
+  // Unique boxes viewed
+  const coinBoxes = new Set(checkIns.filter(l => isCoin(l.box_id)).map(l => l.box_id));
+  const noteBoxes = new Set(checkIns.filter(l => isNote(l.box_id)).map(l => l.box_id));
+  const totalSessions = checkIns.length;
+
+  document.getElementById('sc-coin').textContent = coinBoxes.size;
+  document.getElementById('sc-note').textContent = noteBoxes.size;
+  document.getElementById('sc-sessions').textContent = totalSessions;
+
+  // Busiest hour (HKT = UTC+8)
+  const hourCounts = new Array(24).fill(0);
+  checkIns.forEach(l => {
+    const hkt = new Date(new Date(l.timestamp).getTime() + 8 * 3600000);
+    hourCounts[hkt.getUTCHours()]++;
+  });
+  const maxHour = hourCounts.indexOf(Math.max(...hourCounts));
+  const busyLabel = totalSessions > 0
+    ? (maxHour < 12 ? maxHour + 'am' : maxHour === 12 ? '12pm' : (maxHour - 12) + 'pm')
+    : '—';
+  document.getElementById('sc-busyhour').textContent = busyLabel;
+
+  // Hour chart (show hours 8am–10pm = 8–22)
+  const chartHours = Array.from({length: 15}, (_, i) => i + 8); // 8..22
+  const maxCount = Math.max(...chartHours.map(h => hourCounts[h]), 1);
+  const chartEl = document.getElementById('hour-chart');
+  chartEl.innerHTML = chartHours.map(h => {
+    const cnt = hourCounts[h];
+    const pct = Math.max(Math.round((cnt / maxCount) * 100), cnt > 0 ? 4 : 0);
+    const lbl = h < 12 ? h + 'a' : h === 12 ? '12p' : (h - 12) + 'p';
+    const isMax = h === maxHour && totalSessions > 0;
+    return `<div class="hour-bar-wrap">
+      <div class="hour-bar" style="height:${pct}%;background:${isMax ? 'var(--yellow)' : 'var(--accent)'};"></div>
+      <div class="hour-label">${lbl}</div>
+    </div>`;
+  }).join('');
+
+  // Top 20 rankings
+  const coinCount = {}; const noteCount = {};
+  checkIns.forEach(l => {
+    if (isCoin(l.box_id)) coinCount[l.box_id] = (coinCount[l.box_id] || 0) + 1;
+    if (isNote(l.box_id)) noteCount[l.box_id] = (noteCount[l.box_id] || 0) + 1;
+  });
+
+  function renderRankTable(elId, countMap, barClass) {
+    const sorted = Object.entries(countMap).sort((a, b) => b[1] - a[1]).slice(0, 20);
+    const tbody = document.querySelector('#' + elId + ' tbody');
+    if (!sorted.length) {
+      tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-muted);font-style:italic;">No data for this period.</td></tr>';
       return;
     }
-
-    wrap.innerHTML = `
-      <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">${reportData.length} session${reportData.length !== 1 ? 's' : ''} found.</p>
-      <div style="overflow-x:auto;">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Box ID</th><th>Table</th><th>Helper</th>
-            <th>Check-in</th><th>Check-out</th><th>Duration (min)</th><th>Stocktake Verified By</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${reportData.map(r => `
-            <tr>
-              <td>${r.box_id}</td>
-              <td>${r.table_id || '—'}</td>
-              <td>${r.helper_name}</td>
-              <td>${r.checkin_time}</td>
-              <td>${r.checkout_time}</td>
-              <td>${r.duration_min}</td>
-              <td>${r.stocktake_verified_by || '—'}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-      </div>
-    `;
-  } catch (err) {
-    wrap.innerHTML = '<div style="color:var(--red);padding:16px;">Error: ' + err.message + '</div>';
+    const maxVal = sorted[0][1];
+    tbody.innerHTML = sorted.map(([id, cnt], i) => {
+      const pct = Math.round((cnt / maxVal) * 100);
+      return `<tr>
+        <td class="rank-num">${i + 1}</td>
+        <td><strong>${id}</strong></td>
+        <td>${cnt} session${cnt !== 1 ? 's' : ''}</td>
+        <td style="width:120px;">
+          <div class="rank-bar-wrap"><div class="rank-bar ${barClass}" style="width:${pct}%;"></div></div>
+        </td>
+      </tr>`;
+    }).join('');
   }
+
+  renderRankTable('rank-coin', coinCount, '');
+  renderRankTable('rank-note', noteCount, 'green');
+}
+
+function filterRawLog() {
+  const rawBoxId = document.getElementById('report-box').value.trim().toUpperCase();
+  let filtered = reportData;
+  if (rawBoxId) {
+    let id;
+    if (/^BOX-/.test(rawBoxId)) id = rawBoxId;
+    else if (/^\d+$/.test(rawBoxId)) id = 'BOX-' + rawBoxId;
+    else if (/^[A-Z]+$/.test(rawBoxId)) id = 'BOX-' + rawBoxId;
+    else id = rawBoxId;
+    filtered = reportData.filter(r => r.box_id === id);
+  }
+  renderRawLog(filtered);
+}
+
+function renderRawLog(data) {
+  const wrap = document.getElementById('report-table-wrap');
+  if (!data || !data.length) {
+    wrap.innerHTML = '<div style="color:var(--text-muted);padding:16px;font-style:italic;">No records found for the selected filters.</div>';
+    return;
+  }
+  wrap.innerHTML = `
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">${data.length} session${data.length !== 1 ? 's' : ''} found.</p>
+    <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead><tr>
+        <th>Box ID</th><th>Table</th><th>Helper</th>
+        <th>Check-in</th><th>Check-out</th><th>Duration (min)</th><th>Stocktake Verified By</th>
+      </tr></thead>
+      <tbody>
+        ${data.map(r => `
+          <tr>
+            <td>${r.box_id}</td>
+            <td>${r.table_id || '—'}</td>
+            <td>${r.helper_name}</td>
+            <td>${r.checkin_time}</td>
+            <td>${r.checkout_time}</td>
+            <td>${r.duration_min}</td>
+            <td>${r.stocktake_verified_by || '—'}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>
+    </div>
+  `;
 }
 
 function buildReportRows(logs, stVerifiedMap = {}) {
