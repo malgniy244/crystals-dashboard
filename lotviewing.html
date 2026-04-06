@@ -914,6 +914,7 @@ let floorRefreshInterval = null;
 let reportData = [];
 let acknowledgedAutoCheckouts = new Set();
 let activeBoxElapsedTimer = null;
+let analyticsCache = { hourCounts: new Array(24).fill(0), coinCount: {}, noteCount: {}, totalSessions: 0, maxHour: -1 };
 
 // ── SUPABASE HELPERS ───────────────────────────────────────
 async function sbFetch(path, options = {}) {
@@ -1630,6 +1631,9 @@ function buildAnalytics(logs) {
 
   renderRankTable('rank-coin', coinCount, '');
   renderRankTable('rank-note', noteCount, 'green');
+
+  // Save to cache for copy/PDF export
+  analyticsCache = { hourCounts: [...hourCounts], coinCount: {...coinCount}, noteCount: {...noteCount}, totalSessions, maxHour };
 }
 
 function filterRawLog() {
@@ -1763,37 +1767,57 @@ function buildAnalyticsText() {
   const note = document.getElementById('sc-note').textContent;
   const sess = document.getElementById('sc-sessions').textContent;
   const busy = document.getElementById('sc-busyhour').textContent;
+  const { hourCounts } = analyticsCache;
+
+  // Sessions by hour (8am–10pm)
+  const hourLines = Array.from({length:15},(_,i)=>i+8).map(h => {
+    const cnt = hourCounts[h];
+    if (!cnt) return null;
+    const lbl = h < 12 ? h + ':00am' : h === 12 ? '12:00pm' : (h-12) + ':00pm';
+    return `  ${lbl.padEnd(9)}  ${cnt} session${cnt!==1?'s':''}`;
+  }).filter(Boolean).join('\n');
 
   // Top 20 coins
-  const coinRows = [...document.querySelectorAll('#rank-coin tbody tr')].map((tr, i) => {
+  const coinRows = [...document.querySelectorAll('#rank-coin tbody tr')].map(tr => {
     const cells = tr.querySelectorAll('td');
     if (cells.length < 3) return null;
-    return `  ${cells[0].textContent.trim()}. ${cells[1].textContent.trim()} — ${cells[2].textContent.trim()}`;
+    const rank = cells[0].textContent.trim().padStart(2);
+    const id   = cells[1].textContent.trim().padEnd(12);
+    return `  ${rank}. ${id}  ${cells[2].textContent.trim()}`;
   }).filter(Boolean).join('\n');
 
   // Top 20 banknotes
-  const noteRows = [...document.querySelectorAll('#rank-note tbody tr')].map((tr, i) => {
+  const noteRows = [...document.querySelectorAll('#rank-note tbody tr')].map(tr => {
     const cells = tr.querySelectorAll('td');
     if (cells.length < 3) return null;
-    return `  ${cells[0].textContent.trim()}. ${cells[1].textContent.trim()} — ${cells[2].textContent.trim()}`;
+    const rank = cells[0].textContent.trim().padStart(2);
+    const id   = cells[1].textContent.trim().padEnd(12);
+    return `  ${rank}. ${id}  ${cells[2].textContent.trim()}`;
   }).filter(Boolean).join('\n');
 
+  const sep = '─'.repeat(44);
   return [
     `AUCTION LOT TRACKER — ANALYTICS REPORT`,
-    `Period: ${from} to ${to}`,
+    `Period   : ${from}  →  ${to}`,
     `Generated: ${new Date().toLocaleString('en-GB')}`,
-    ``,
+    sep,
     `DAILY SUMMARY`,
-    `Unique Coin Boxes Viewed:     ${coin}`,
-    `Unique Banknote Boxes Viewed: ${note}`,
-    `Total Viewing Sessions:       ${sess}`,
-    `Busiest Hour (HKT):           ${busy}`,
-    ``,
+    `  Unique Coin Boxes Viewed     : ${coin}`,
+    `  Unique Banknote Boxes Viewed : ${note}`,
+    `  Total Viewing Sessions       : ${sess}`,
+    `  Busiest Hour (HKT)           : ${busy}`,
+    sep,
+    `SESSIONS BY HOUR (HKT)`,
+    hourLines || '  No data.',
+    sep,
     `TOP 20 MOST VIEWED — COIN BOXES`,
+    `  ${'#'.padStart(2)}  ${'Box ID'.padEnd(12)}  Sessions`,
     coinRows || '  No data.',
-    ``,
+    sep,
     `TOP 20 MOST VIEWED — BANKNOTE BOXES`,
+    `  ${'#'.padStart(2)}  ${'Box ID'.padEnd(12)}  Sessions`,
     noteRows || '  No data.',
+    sep,
   ].join('\n');
 }
 
@@ -1816,14 +1840,22 @@ function exportAnalyticsPDF() {
   const note = document.getElementById('sc-note').textContent;
   const sess = document.getElementById('sc-sessions').textContent;
   const busy = document.getElementById('sc-busyhour').textContent;
+  const { hourCounts } = analyticsCache;
 
-  const coinRows = [...document.querySelectorAll('#rank-coin tbody tr')].map((tr, i) => {
+  // Sessions by hour rows
+  const hourRows = Array.from({length:15},(_,i)=>i+8).map(h => {
+    const cnt = hourCounts[h];
+    const lbl = h < 12 ? h + ':00 am' : h === 12 ? '12:00 pm' : (h-12) + ':00 pm';
+    return `<tr${cnt===Math.max(...hourCounts)?` style="background:#fffde7;font-weight:700;"`:''}><td>${lbl}</td><td>${cnt}</td></tr>`;
+  }).join('');
+
+  const coinRows = [...document.querySelectorAll('#rank-coin tbody tr')].map(tr => {
     const cells = tr.querySelectorAll('td');
     if (cells.length < 3) return '';
     return `<tr><td>${cells[0].textContent.trim()}</td><td><strong>${cells[1].textContent.trim()}</strong></td><td>${cells[2].textContent.trim()}</td></tr>`;
   }).join('');
 
-  const noteRows = [...document.querySelectorAll('#rank-note tbody tr')].map((tr, i) => {
+  const noteRows = [...document.querySelectorAll('#rank-note tbody tr')].map(tr => {
     const cells = tr.querySelectorAll('td');
     if (cells.length < 3) return '';
     return `<tr><td>${cells[0].textContent.trim()}</td><td><strong>${cells[1].textContent.trim()}</strong></td><td>${cells[2].textContent.trim()}</td></tr>`;
@@ -1842,21 +1874,24 @@ function exportAnalyticsPDF() {
     .card-val { font-size:28px; font-weight:800; color:#e94560; }
     .card-val.g { color:#2ecc71; } .card-val.o { color:#f39c12; } .card-val.y { color:#f1c40f; }
     .card-lbl { font-size:10px; color:#666; margin-top:4px; }
-    h2 { font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:#666; margin:20px 0 8px; border-bottom:1px solid #eee; padding-bottom:6px; }
-    table { width:100%; border-collapse:collapse; font-size:12px; }
+    h2 { font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:#555; margin:24px 0 8px; border-bottom:2px solid #e94560; padding-bottom:6px; }
+    table { width:100%; border-collapse:collapse; font-size:12px; margin-bottom:8px; }
     th { background:#1a1a2e; color:#fff; padding:7px 10px; text-align:left; font-size:10px; text-transform:uppercase; }
     td { padding:6px 10px; border-bottom:1px solid #eee; }
+    .hour-table { max-width:320px; }
     @media print { .print-btn { display:none; } @page { margin:15mm; size:A4; } }
   </style></head><body>
-  <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
+  <button class="print-btn" onclick="window.print()">&#128196; Print / Save as PDF</button>
   <h1>Auction Lot Tracker — Analytics Report</h1>
-  <div class="meta">Period: ${from} to ${to} &nbsp;|&nbsp; Generated: ${new Date().toLocaleString('en-GB')}</div>
+  <div class="meta">Period: ${from} → ${to} &nbsp;|&nbsp; Generated: ${new Date().toLocaleString('en-GB')}</div>
   <div class="cards">
     <div class="card"><div class="card-val">${coin}</div><div class="card-lbl">Unique Coin Boxes Viewed</div></div>
     <div class="card"><div class="card-val g">${note}</div><div class="card-lbl">Unique Banknote Boxes Viewed</div></div>
     <div class="card"><div class="card-val o">${sess}</div><div class="card-lbl">Total Viewing Sessions</div></div>
     <div class="card"><div class="card-val y">${busy}</div><div class="card-lbl">Busiest Hour (HKT)</div></div>
   </div>
+  <h2>Sessions by Hour (HKT)</h2>
+  <table class="hour-table"><thead><tr><th>Hour</th><th>Sessions</th></tr></thead><tbody>${hourRows}</tbody></table>
   <h2>Top 20 Most Viewed — Coin Boxes</h2>
   <table><thead><tr><th>#</th><th>Box ID</th><th>Sessions</th></tr></thead><tbody>${coinRows || '<tr><td colspan="3">No data.</td></tr>'}</tbody></table>
   <h2>Top 20 Most Viewed — Banknote Boxes</h2>
