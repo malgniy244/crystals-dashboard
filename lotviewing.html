@@ -726,8 +726,19 @@
       <button class="btn-close" onclick="closeScanner()">✕</button>
     </div>
     <!-- ZXing renders into this video element -->
-    <video id="qr-video" style="width:100%;border-radius:8px;background:#000;max-height:60vh;object-fit:cover;" playsinline muted autoplay></video>
+    <video id="qr-video" style="width:100%;border-radius:8px;background:#000;max-height:55vh;object-fit:cover;" playsinline muted autoplay></video>
     <div class="modal-hint" id="scanner-hint">Point your camera at the QR code</div>
+    <!-- Manual entry fallback -->
+    <div style="padding:12px 20px 16px;border-top:1px solid var(--border);">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;text-align:center;">Camera not working? Enter manually:</div>
+      <div style="display:flex;gap:8px;">
+        <input id="manual-scan-input" class="text-input" type="text" placeholder="e.g. 19 or A or TABLE-03"
+          style="margin:0;flex:1;padding:10px 12px;font-size:15px;"
+          autocomplete="off" autocapitalize="characters"
+          onkeydown="if(event.key==='Enter')submitManualScan()" />
+        <button onclick="submitManualScan()" style="padding:10px 16px;background:var(--accent);color:#fff;border-radius:8px;font-size:14px;font-weight:600;">Go</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -858,33 +869,36 @@ async function startZXingLive() {
 
     zxingReader = new ZXing.BrowserQRCodeReader(hints);
 
-    // Prefer rear camera at highest resolution
-    const constraints = {
-      video: {
-        facingMode: { ideal: 'environment' },
-        width:  { ideal: 1920 },
-        height: { ideal: 1080 }
-      }
-    };
-
     const videoEl = document.getElementById('qr-video');
 
-    // Get the stream ourselves so we can pass it to ZXing
-    const stream = await navigator.mediaDevices.getUserMedia(constraints);
-    videoEl.srcObject = stream;
-    await videoEl.play();
+    // Get available video devices and prefer the rear camera
+    // Using decodeFromVideoDevice is more compatible with Samsung devices
+    // than decodeFromStream which can silently fail on some Android browsers
+    let deviceId = undefined;
+    try {
+      const devices = await ZXing.BrowserCodeReader.listVideoInputDevices();
+      // Prefer back/environment camera — look for 'back', 'rear', 'environment' in label
+      const rearCam = devices.find(d =>
+        /back|rear|environment/i.test(d.label)
+      );
+      if (rearCam) deviceId = rearCam.deviceId;
+      else if (devices.length > 0) deviceId = devices[devices.length - 1].deviceId; // last device is usually rear
+    } catch(e) {
+      // If listing fails, pass undefined and let ZXing pick
+    }
 
-    // Now start continuous decode from the live video element
-    zxingReader.decodeFromStream(stream, videoEl, (result, err) => {
+    // decodeFromVideoDevice works reliably on Samsung/Android Chrome
+    await zxingReader.decodeFromVideoDevice(deviceId, videoEl, (result, err) => {
       if (result) {
         closeScanner();
         handleScan(result.getText().trim().toUpperCase());
       }
-      // NotFoundException is thrown every frame when no QR is visible — ignore it
+      // NotFoundException fires every frame when no QR visible — ignore
     });
   } catch (e) {
-    showToast('Camera error: ' + (e.message || e));
-    closeScanner();
+    // Show error but keep manual entry visible so user can still proceed
+    document.getElementById('scanner-hint').textContent = 'Camera unavailable — please use manual entry below.';
+    document.getElementById('scanner-hint').style.color = 'var(--orange)';
   }
 }
 
@@ -904,6 +918,46 @@ function stopZXingLive() {
 function closeScanner() {
   document.getElementById('scanner-modal').classList.add('hidden');
   stopZXingLive();
+  // Reset hint colour in case it was changed by camera error
+  const hint = document.getElementById('scanner-hint');
+  hint.style.color = '';
+  document.getElementById('manual-scan-input').value = '';
+}
+
+// Manual entry fallback — resolves box/table IDs from plain text input
+function submitManualScan() {
+  const raw = document.getElementById('manual-scan-input').value.trim().toUpperCase();
+  if (!raw) return;
+
+  let code;
+  if (scannerMode === 'table') {
+    // Accept: TABLE-3, TABLE-03, or just 3
+    if (/^TABLE-/.test(raw)) {
+      // Normalise to TABLE-XX (zero-padded to 2 digits)
+      const num = parseInt(raw.replace('TABLE-', ''), 10);
+      code = 'TABLE-' + String(num).padStart(2, '0');
+    } else if (/^\d+$/.test(raw)) {
+      code = 'TABLE-' + String(parseInt(raw, 10)).padStart(2, '0');
+    } else {
+      showToast('Enter a table number (e.g. 3 or TABLE-03)');
+      return;
+    }
+  } else {
+    // Box: accept 19 → BOX-19, A → BOX-A, AA → BOX-AA, BOX-19, BOX-AA
+    if (/^BOX-/.test(raw)) {
+      code = raw;
+    } else if (/^\d+$/.test(raw)) {
+      code = 'BOX-' + raw;
+    } else if (/^[A-Z]+$/.test(raw)) {
+      code = 'BOX-' + raw;
+    } else {
+      showToast('Enter a box number (e.g. 19 or A or AA)');
+      return;
+    }
+  }
+
+  closeScanner();
+  handleScan(code);
 }
 
 // ── HANDLE SCAN ────────────────────────────────────────────
@@ -1094,7 +1148,17 @@ async function helperSearchBox() {
   const raw = document.getElementById('helper-search-input').value.trim().toUpperCase();
   const el  = document.getElementById('helper-search-result');
   if (!raw) { el.classList.add('hidden'); return; }
-  const id = /^\d+$/.test(raw) ? 'BOX-' + raw : raw;
+  // Accept: 19 → BOX-19, A → BOX-A, AA → BOX-AA, or full BOX-xx
+  let id;
+  if (/^BOX-/.test(raw)) {
+    id = raw;
+  } else if (/^\d+$/.test(raw)) {
+    id = 'BOX-' + raw;
+  } else if (/^[A-Z]+$/.test(raw)) {
+    id = 'BOX-' + raw;
+  } else {
+    id = raw; // pass through and let the DB return not-found
+  }
   el.classList.remove('hidden');
   el.textContent = 'Looking up ' + id + '…';
   try {
@@ -1152,7 +1216,17 @@ async function adminSearch() {
   const raw = document.getElementById('admin-search-input').value.trim().toUpperCase();
   const el  = document.getElementById('admin-search-result');
   if (!raw) { el.innerHTML = ''; return; }
-  const id = /^\d+$/.test(raw) ? 'BOX-' + raw : raw;
+  // Accept: 19 → BOX-19, A → BOX-A, AA → BOX-AA, or full BOX-xx
+  let id;
+  if (/^BOX-/.test(raw)) {
+    id = raw;
+  } else if (/^\d+$/.test(raw)) {
+    id = 'BOX-' + raw;
+  } else if (/^[A-Z]+$/.test(raw)) {
+    id = 'BOX-' + raw;
+  } else {
+    id = raw;
+  }
   el.innerHTML = '<div style="color:var(--text-muted);padding:16px;">Searching…</div>';
   try {
     const box = await getBox(id);
