@@ -744,6 +744,36 @@
     <div id="tab-reports" class="tab-panel">
       <div class="section-title" style="margin-top:8px;">Reports &amp; Analytics</div>
 
+      <!-- Daily Notes Section -->
+      <div class="analytics-section" id="daily-notes-section" style="margin-bottom:16px;">
+        <div class="analytics-section-title" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>Daily Notes</span>
+          <button class="btn-admin-search" style="font-size:12px;padding:6px 12px;" onclick="toggleDailyNotesForm()">+ Add / Edit</button>
+        </div>
+        <div id="daily-notes-form" class="hidden" style="margin-top:10px;padding:12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);">
+          <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
+            <div class="report-field">
+              <label>Date</label>
+              <input id="dn-date" class="report-input" type="date" style="width:140px;" />
+            </div>
+            <div class="report-field">
+              <label>No. of Helpers</label>
+              <input id="dn-helpers" class="report-input" type="number" min="0" placeholder="e.g. 5" style="width:100px;" />
+            </div>
+            <div class="report-field">
+              <label>No. of Clients</label>
+              <input id="dn-clients" class="report-input" type="number" min="0" placeholder="e.g. 20" style="width:100px;" />
+            </div>
+            <div class="report-field">
+              <label>&nbsp;</label>
+              <button class="btn-admin-search" onclick="saveDailyNote()">Save</button>
+            </div>
+          </div>
+          <div id="dn-status" style="font-size:12px;color:var(--text-muted);margin-top:8px;"></div>
+        </div>
+        <div id="daily-notes-list" style="margin-top:8px;font-size:13px;color:var(--text-muted);font-style:italic;">Load a report to see daily notes.</div>
+      </div>
+
       <!-- Date controls with calendar pickers -->
       <div class="date-picker-row">
         <div style="position:relative;">
@@ -786,6 +816,11 @@
             <div class="summary-card"><div class="card-value green" id="sc-note">—</div><div class="card-label">Unique Banknote Boxes Viewed</div></div>
             <div class="summary-card"><div class="card-value orange" id="sc-sessions">—</div><div class="card-label">Total Viewing Sessions</div></div>
             <div class="summary-card"><div class="card-value yellow" id="sc-busyhour">—</div><div class="card-label">Busiest Hour</div></div>
+          </div>
+          <!-- Headcount cards — only shown when daily notes are available -->
+          <div class="summary-cards" id="headcount-cards" style="display:none;margin-top:8px;">
+            <div class="summary-card"><div class="card-value" style="color:var(--accent);" id="sc-helpers">—</div><div class="card-label">Total Helpers</div></div>
+            <div class="summary-card"><div class="card-value" style="color:#9b59b6;" id="sc-clients">—</div><div class="card-label">Total Clients</div></div>
           </div>
         </div>
 
@@ -914,7 +949,8 @@ let floorRefreshInterval = null;
 let reportData = [];
 let acknowledgedAutoCheckouts = new Set();
 let activeBoxElapsedTimer = null;
-let analyticsCache = { hourCounts: new Array(24).fill(0), coinCount: {}, noteCount: {}, totalSessions: 0, maxHour: -1 };
+let analyticsCache = { hourCounts: new Array(24).fill(0), coinCount: {}, noteCount: {}, totalSessions: 0, maxHour: -1, dailyNotes: [] };
+let allDailyNotes = []; // daily_notes rows for current report range
 
 // ── SUPABASE HELPERS ───────────────────────────────────────
 async function sbFetch(path, options = {}) {
@@ -1544,8 +1580,15 @@ async function loadReport() {
 
     reportData = buildReportRows(allReportLogs, stVerifiedMap);
 
+    // ── Fetch daily_notes for the date range ───────────────
+    let dnQuery = 'daily_notes?select=*&order=note_date.asc';
+    if (from) dnQuery += '&note_date=gte.' + encodeURIComponent(from);
+    if (to)   dnQuery += '&note_date=lte.' + encodeURIComponent(to);
+    allDailyNotes = await sbFetch(dnQuery).catch(() => []) || [];
+    renderDailyNotesList(allDailyNotes);
+
     // ── Build analytics ────────────────────────────────────
-    buildAnalytics(allReportLogs);
+    buildAnalytics(allReportLogs, allDailyNotes);
 
     // ── Populate raw log table ──────────────────────────────
     renderRawLog(reportData);
@@ -1556,7 +1599,7 @@ async function loadReport() {
   }
 }
 
-function buildAnalytics(logs) {
+function buildAnalytics(logs, dailyNotes) {
   // Only CHECK_IN events for counting sessions and unique boxes
   const checkIns = logs.filter(l => l.action === 'CHECK_IN');
 
@@ -1632,8 +1675,98 @@ function buildAnalytics(logs) {
   renderRankTable('rank-coin', coinCount, '');
   renderRankTable('rank-note', noteCount, 'green');
 
+  // Daily notes headcount (aggregate across date range)
+  const notes = dailyNotes || [];
+  const totalHelpers = notes.reduce((s, n) => s + (n.helpers_count || 0), 0);
+  const totalClients = notes.reduce((s, n) => s + (n.clients_count || 0), 0);
+  const hasHeadcount = notes.some(n => n.helpers_count != null || n.clients_count != null);
+  const headcountEl = document.getElementById('headcount-cards');
+  if (hasHeadcount) {
+    document.getElementById('sc-helpers').textContent = totalHelpers;
+    document.getElementById('sc-clients').textContent = totalClients;
+    headcountEl.style.display = '';
+  } else {
+    headcountEl.style.display = 'none';
+  }
+
   // Save to cache for copy/PDF export
-  analyticsCache = { hourCounts: [...hourCounts], coinCount: {...coinCount}, noteCount: {...noteCount}, totalSessions, maxHour };
+  analyticsCache = { hourCounts: [...hourCounts], coinCount: {...coinCount}, noteCount: {...noteCount}, totalSessions, maxHour, dailyNotes: notes };
+}
+
+// ── DAILY NOTES ──────────────────────────────────────────────
+function toggleDailyNotesForm() {
+  const form = document.getElementById('daily-notes-form');
+  form.classList.toggle('hidden');
+  if (!form.classList.contains('hidden')) {
+    // Default date to today in HKT
+    const todayHKT = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
+    if (!document.getElementById('dn-date').value) {
+      document.getElementById('dn-date').value = todayHKT;
+    }
+  }
+}
+
+async function saveDailyNote() {
+  const dateVal    = document.getElementById('dn-date').value;
+  const helpersVal = document.getElementById('dn-helpers').value;
+  const clientsVal = document.getElementById('dn-clients').value;
+  const statusEl   = document.getElementById('dn-status');
+
+  if (!dateVal) { statusEl.textContent = 'Please select a date.'; statusEl.style.color = 'var(--red)'; return; }
+  if (helpersVal === '' && clientsVal === '') { statusEl.textContent = 'Please enter at least one value.'; statusEl.style.color = 'var(--red)'; return; }
+
+  statusEl.textContent = 'Saving…'; statusEl.style.color = 'var(--text-muted)';
+
+  const payload = {
+    note_date: dateVal,
+    helpers_count: helpersVal !== '' ? parseInt(helpersVal) : null,
+    clients_count: clientsVal !== '' ? parseInt(clientsVal) : null
+  };
+
+  try {
+    // Try upsert (insert or update by note_date)
+    await sbFetch('daily_notes?on_conflict=note_date', {
+      method: 'POST',
+      headers: { 'Prefer': 'resolution=merge-duplicates,return=representation' },
+      body: JSON.stringify(payload)
+    });
+    statusEl.textContent = '✓ Saved for ' + dateVal;
+    statusEl.style.color = 'var(--green)';
+    // Clear inputs
+    document.getElementById('dn-helpers').value = '';
+    document.getElementById('dn-clients').value = '';
+    // Refresh the list if report is loaded
+    if (allDailyNotes !== undefined) {
+      const from = document.getElementById('report-from').value;
+      const to   = document.getElementById('report-to').value;
+      let dnQuery = 'daily_notes?select=*&order=note_date.asc';
+      if (from) dnQuery += '&note_date=gte.' + encodeURIComponent(from);
+      if (to)   dnQuery += '&note_date=lte.' + encodeURIComponent(to);
+      allDailyNotes = await sbFetch(dnQuery).catch(() => []) || [];
+      renderDailyNotesList(allDailyNotes);
+      // Rebuild analytics with updated notes
+      buildAnalytics(allReportLogs, allDailyNotes);
+    }
+  } catch (err) {
+    statusEl.textContent = 'Error: ' + err.message;
+    statusEl.style.color = 'var(--red)';
+  }
+}
+
+function renderDailyNotesList(notes) {
+  const el = document.getElementById('daily-notes-list');
+  if (!notes || !notes.length) {
+    el.innerHTML = '<span style="font-style:italic;">No daily notes for this period.</span>';
+    return;
+  }
+  const rows = notes.map(n => {
+    const d = new Date(n.note_date + 'T00:00:00').toLocaleDateString('en-GB', { weekday:'short', day:'2-digit', month:'short', year:'numeric' });
+    const h = n.helpers_count != null ? `<strong>${n.helpers_count}</strong> helper${n.helpers_count !== 1 ? 's' : ''}` : '';
+    const c = n.clients_count != null ? `<strong>${n.clients_count}</strong> client${n.clients_count !== 1 ? 's' : ''}` : '';
+    const vals = [h, c].filter(Boolean).join(', ');
+    return `<div style="padding:4px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;"><span style="color:var(--text-muted);">${d}</span><span>${vals || '<em>no data</em>'}</span></div>`;
+  }).join('');
+  el.innerHTML = `<div style="font-style:normal;">${rows}</div>`;
 }
 
 function filterRawLog() {
@@ -1795,7 +1928,28 @@ function buildAnalyticsText() {
     return `  ${rank}. ${id}  ${cells[2].textContent.trim()}`;
   }).filter(Boolean).join('\n');
 
+  const { dailyNotes } = analyticsCache;
+  const totalHelpers = (dailyNotes || []).reduce((s, n) => s + (n.helpers_count || 0), 0);
+  const totalClients = (dailyNotes || []).reduce((s, n) => s + (n.clients_count || 0), 0);
+  const hasHeadcount = (dailyNotes || []).some(n => n.helpers_count != null || n.clients_count != null);
+
+  // Per-day headcount lines
+  const perDayLines = (dailyNotes || []).filter(n => n.helpers_count != null || n.clients_count != null).map(n => {
+    const d = new Date(n.note_date + 'T00:00:00').toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+    const h = n.helpers_count != null ? n.helpers_count + ' helper' + (n.helpers_count !== 1 ? 's' : '') : '';
+    const c = n.clients_count != null ? n.clients_count + ' client' + (n.clients_count !== 1 ? 's' : '') : '';
+    return `  ${d.padEnd(14)}  ${[h, c].filter(Boolean).join(', ')}`;
+  }).join('\n');
+
   const sep = '─'.repeat(44);
+  const headcountSection = hasHeadcount ? [
+    sep,
+    `HEADCOUNT`,
+    `  Total Helpers : ${totalHelpers}`,
+    `  Total Clients : ${totalClients}`,
+    perDayLines ? `\nPer Day:\n${perDayLines}` : '',
+  ].filter(Boolean) : [];
+
   return [
     `AUCTION LOT TRACKER — ANALYTICS REPORT`,
     `Period   : ${from}  →  ${to}`,
@@ -1806,6 +1960,7 @@ function buildAnalyticsText() {
     `  Unique Banknote Boxes Viewed : ${note}`,
     `  Total Viewing Sessions       : ${sess}`,
     `  Busiest Hour (HKT)           : ${busy}`,
+    ...headcountSection,
     sep,
     `SESSIONS BY HOUR (HKT)`,
     hourLines || '  No data.',
@@ -1861,6 +2016,24 @@ function exportAnalyticsPDF() {
     return `<tr><td>${cells[0].textContent.trim()}</td><td><strong>${cells[1].textContent.trim()}</strong></td><td>${cells[2].textContent.trim()}</td></tr>`;
   }).join('');
 
+  // Headcount section for PDF
+  const { dailyNotes: pdfNotes } = analyticsCache;
+  const pdfTotalHelpers = (pdfNotes || []).reduce((s, n) => s + (n.helpers_count || 0), 0);
+  const pdfTotalClients = (pdfNotes || []).reduce((s, n) => s + (n.clients_count || 0), 0);
+  const pdfHasHeadcount = (pdfNotes || []).some(n => n.helpers_count != null || n.clients_count != null);
+  const pdfHeadcountRows = (pdfNotes || []).filter(n => n.helpers_count != null || n.clients_count != null).map(n => {
+    const d = new Date(n.note_date + 'T00:00:00').toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+    return `<tr><td>${d}</td><td>${n.helpers_count != null ? n.helpers_count : '—'}</td><td>${n.clients_count != null ? n.clients_count : '—'}</td></tr>`;
+  }).join('');
+  const headcountSection = pdfHasHeadcount ? `
+    <h2>Headcount</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:320px;margin-bottom:16px;">
+      <div class="card"><div class="card-val" style="color:#e94560;">${pdfTotalHelpers}</div><div class="card-lbl">Total Helpers</div></div>
+      <div class="card"><div class="card-val" style="color:#9b59b6;">${pdfTotalClients}</div><div class="card-lbl">Total Clients</div></div>
+    </div>
+    <table style="max-width:400px;"><thead><tr><th>Date</th><th>Helpers</th><th>Clients</th></tr></thead><tbody>${pdfHeadcountRows}</tbody></table>
+  ` : '';
+
   const win = window.open('', '_blank');
   win.document.write(`<!DOCTYPE html><html><head><title>Analytics Report</title>
   <style>
@@ -1890,6 +2063,7 @@ function exportAnalyticsPDF() {
     <div class="card"><div class="card-val o">${sess}</div><div class="card-lbl">Total Viewing Sessions</div></div>
     <div class="card"><div class="card-val y">${busy}</div><div class="card-lbl">Busiest Hour (HKT)</div></div>
   </div>
+  ${headcountSection}
   <h2>Sessions by Hour (HKT)</h2>
   <table class="hour-table"><thead><tr><th>Hour</th><th>Sessions</th></tr></thead><tbody>${hourRows}</tbody></table>
   <h2>Top 20 Most Viewed — Coin Boxes</h2>
