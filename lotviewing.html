@@ -2416,13 +2416,23 @@ async function loadStocktakeList() {
     // Actually compute correctly:
     const hktMidnightUTC = new Date(todayHKT + 'T00:00:00+08:00').toISOString();
 
-    const logs = await sbFetch(
-      'scan_log?select=box_id&timestamp=gte.' + encodeURIComponent(hktMidnightUTC) +
-      '&order=box_id.asc'
-    );
+    // Fetch all scan_log entries for today using pagination (Supabase caps at 1000 rows per request)
+    let allLogs = [];
+    let offset = 0;
+    const PAGE_SIZE = 1000;
+    while (true) {
+      const page = await sbFetch(
+        'scan_log?select=box_id&timestamp=gte.' + encodeURIComponent(hktMidnightUTC) +
+        '&order=timestamp.asc&limit=' + PAGE_SIZE + '&offset=' + offset
+      );
+      if (!page || page.length === 0) break;
+      allLogs = allLogs.concat(page);
+      if (page.length < PAGE_SIZE) break;
+      offset += PAGE_SIZE;
+    }
 
     // Unique box IDs seen today
-    const seenIds = [...new Set((logs || []).map(l => l.box_id))];
+    const seenIds = [...new Set((allLogs || []).map(l => l.box_id))];
 
     if (!seenIds.length) {
       stocktakeBoxes = [];
