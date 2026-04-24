@@ -31,6 +31,31 @@
 		<meta name="twitter:image:width" content="1200">
 		<meta name="twitter:image:height" content="630"><link rel="canonical" href="index.html" /></head>
   <body>
+    <!-- PASSWORD GATE -->
+    <div id="pw-gate" style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f5f4f0;font-family:'Source Sans 3',sans-serif;">
+      <div style="background:#fff;border-radius:12px;padding:40px 36px;max-width:360px;width:100%;box-shadow:0 4px 24px rgba(0,0,0,0.10);text-align:center;">
+        <div style="font-size:13px;letter-spacing:0.12em;text-transform:uppercase;color:#8a7a6a;margin-bottom:8px;">Stack's Bowers</div>
+        <h2 style="font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;color:#2c2416;margin:0 0 6px;">Invoice Generator</h2>
+        <p style="color:#8a7a6a;font-size:14px;margin:0 0 24px;">Enter the password to continue.</p>
+        <input id="pw-input" type="password" placeholder="Password" autocomplete="current-password"
+          style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid #d8cfc4;border-radius:8px;font-size:15px;margin-bottom:10px;outline:none;"
+          onkeydown="if(event.key==='Enter')checkPw()" />
+        <div id="pw-error" style="color:#c0392b;font-size:13px;margin-bottom:10px;display:none;">Incorrect password.</div>
+        <button onclick="checkPw()"
+          style="width:100%;padding:11px;background:#2c2416;color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;letter-spacing:0.04em;">Enter</button>
+      </div>
+    </div>
+    <script>
+      (function(){
+        var KEY='inv_auth',PW='auction2024';
+        if(sessionStorage.getItem(KEY)==='1'){document.getElementById('pw-gate').style.display='none';}
+        window.checkPw=function(){
+          var v=document.getElementById('pw-input').value;
+          if(v===PW){sessionStorage.setItem(KEY,'1');document.getElementById('pw-gate').style.display='none';}
+          else{document.getElementById('pw-error').style.display='block';document.getElementById('pw-input').value='';document.getElementById('pw-input').focus();}
+        };
+      })();
+    </script>
     <script id="manus-runtime">window.__MANUS_HOST_DEV__ = false;
 (function(){"use strict";var Mr={exports:{}},Kn={};/**
  * @license React
